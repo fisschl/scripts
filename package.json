@@ -1,0 +1,8 @@
+{
+  "name": "scripts",
+  "module": "index.ts",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ]
+}

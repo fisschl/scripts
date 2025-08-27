@@ -1,0 +1,11 @@
+{
+  "name": "ffmpeg",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+   "@tsconfig/bun": "^1.0.8",
+    "@types/bun": "latest",
+    "prettier": "^3.6.2",
+    "typescript": "^5"
+  }
+}
