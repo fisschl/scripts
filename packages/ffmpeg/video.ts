@@ -114,7 +114,7 @@ export const convertToWebM = async (inputPath: string, outputPath: string) => {
   console.info(`使用估算比特率: ${estimatedBitrate}M`);
 
   // 生成唯一的日志文件路径，使用系统临时目录和uuid v7
-  const logFilePath = join(tmpdir(), `${v7()}.log`);
+  const logFilePath = join(tmpdir(), v7());
   console.info(`使用临时日志文件路径: ${logFilePath}`);
 
   console.info("开始第一遍AV1编码（分析）...");

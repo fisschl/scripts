@@ -13,3 +13,11 @@ bun run index.ts
 ```
 
 This project was created using `bun init` in bun v1.2.20. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+
+## Modules
+
+This project contains the following modules:
+
+- **ffmpeg**: Utilities for video and image processing
+- **s3**: AWS S3 integration
+- **logs**: Logging utilities using pino
