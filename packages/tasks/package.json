@@ -1,16 +1,20 @@
 {
-  "name": "ffmpeg",
+  "name": "tasks",
   "module": "index.ts",
   "type": "module",
+  "scripts": {
+    "format": "prettier --write .",
+    "lint": "tsc --noEmit"
+  },
   "devDependencies": {
     "@tsconfig/bun": "^1.0.8",
     "@types/bun": "latest",
-    "@types/sharp": "^0.32.0",
     "prettier": "^3.6.2",
     "typescript": "^5"
   },
   "dependencies": {
-    "sharp": "^0.34.3",
+    "ffmpeg": "workspace:*",
+    "s3": "workspace:*",
     "uuid": "^11.1.0"
   }
 }
