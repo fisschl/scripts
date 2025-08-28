@@ -1,24 +1,8 @@
-import { join } from "path";
-import { tmpdir } from "os";
-import { rename } from "fs/promises";
-import { existsSync } from "fs";
-import { v7 } from "uuid";
 import sharp from "sharp";
-import { $ } from "bun";
+import { blake3 } from "@noble/hashes/blake3";
+import { base32crockford } from "@scure/base";
 
-export const FFMPEG_PATH = join(tmpdir(), "ffmpeg.exe");
-
-/**
- * 准备FFmpeg可执行文件
- */
-export const prepareFFmpegExecutable = async () => {
-  if (existsSync(FFMPEG_PATH)) return;
-  const ffmpegUrl = "https://bronya.world/static/ffmpeg/bin/ffmpeg.exe";
-  const response = await fetch(ffmpegUrl);
-  const tmpPath = join(tmpdir(), v7());
-  Bun.write(tmpPath, response);
-  await rename(tmpPath, FFMPEG_PATH);
-};
+export { prepareFFmpegExecutable, convertToWebM } from "./video";
 
 /**
  * 将图片转换为WebP格式（无损压缩）
@@ -26,22 +10,32 @@ export const prepareFFmpegExecutable = async () => {
  * @param outputPath 输出WebP图片路径
  */
 export const convertToWebP = async (inputPath: string, outputPath: string) => {
+  console.info("开始转换图片为WebP格式...");
   await sharp(inputPath).webp({ lossless: true }).toFile(outputPath);
+  console.info("图片转换完成！");
 };
 
 /**
- * 将视频转换为WebM格式（无损转换）
- * @param inputPath 输入视频路径
- * @param outputPath 输出WebM视频路径
+ * 使用Blake3算法计算文件的哈希值
+ * @param filePath 文件路径
+ * @returns 文件的Blake3哈希值（base32crockford编码字符串）
  */
-export const convertToWebM = async (inputPath: string, outputPath: string) => {
-  // 确保FFmpeg可执行文件已准备就绪
-  await prepareFFmpegExecutable();
+export const calculateFileHash = async (filePath: string): Promise<string> => {
+  const hash = blake3.create();
+  const file = Bun.file(filePath);
+  const stream = file.stream();
+  const reader = stream.getReader();
 
-  // 使用FFmpeg进行无损视频转换
-  // -c:v libvpx-vp9: 使用VP9视频编码器
-  // -crf 0: 恒定质量模式，0为无损
-  // -b:v 0: 无码率限制
-  // -c:a libopus: 使用Opus音频编码器
-  await $`${FFMPEG_PATH} -i ${inputPath} -c:v libvpx-vp9 -crf 0 -b:v 0 -c:a libopus ${outputPath}`;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      hash.update(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  // 使用base32crockford编码哈希值
+  return base32crockford.encode(hash.digest());
 };
