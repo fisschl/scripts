@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { blake3 } from "@noble/hashes/blake3";
 import { base32crockford } from "@scure/base";
+import { logger } from "logger";
 
 export { prepareFFmpegExecutable, convertToWebM } from "./video";
 
@@ -10,9 +11,9 @@ export { prepareFFmpegExecutable, convertToWebM } from "./video";
  * @param outputPath 输出WebP图片路径
  */
 export const convertToWebP = async (inputPath: string, outputPath: string) => {
-  console.info("开始转换图片为WebP格式...");
+  logger.info("开始转换图片为WebP格式...");
   await sharp(inputPath).webp({ lossless: true }).toFile(outputPath);
-  console.info("图片转换完成！");
+  logger.info("图片转换完成！");
 };
 
 /**
@@ -37,5 +38,5 @@ export const calculateFileHash = async (filePath: string): Promise<string> => {
   }
 
   // 使用base32crockford编码哈希值
-  return base32crockford.encode(hash.digest());
+  return base32crockford.encode(hash.digest()).toLowerCase();
 };

@@ -1,23 +1,23 @@
-# scripts
+# 脚本项目
 
-To install dependencies:
+安装依赖：
 
 ```bash
 bun install
 ```
 
-To run:
+运行项目：
 
 ```bash
 bun run index.ts
 ```
 
-This project was created using `bun init` in bun v1.2.20. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+此项目是使用 bun v1.2.20 版本中的 `bun init` 创建的。[Bun](https://bun.com) 是一个快速的一体化 JavaScript 运行时。
 
-## Modules
+## 模块
 
-This project contains the following modules:
+本项目包含以下模块：
 
-- **ffmpeg**: Utilities for video and image processing
-- **s3**: AWS S3 integration
-- **logs**: Logging utilities using pino
+- **ffmpeg**：视频和图像处理工具
+- **s3**：AWS S3 集成
+- **logs**：使用 pino 的日志工具
