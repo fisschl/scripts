@@ -35,20 +35,6 @@
         "typescript": "^5.9.2",
       },
     },
-    "packages/logs": {
-      "name": "logs",
-      "dependencies": {
-        "date-fns": "^4.1.0",
-        "pino": "^8.21.0",
-        "pino-pretty": "^10.3.1",
-      },
-      "devDependencies": {
-        "@tsconfig/bun": "^1.0.8",
-        "@types/bun": "^1.2.21",
-        "prettier": "^3.6.2",
-        "typescript": "^5.9.2",
-      },
-    },
     "packages/s3": {
       "name": "s3",
       "dependencies": {
@@ -370,8 +356,6 @@
     "joycon": ["joycon@3.1.1", "https://registry.npmmirror.com/joycon/-/joycon-3.1.1.tgz", {}, "sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw=="],
 
     "logger": ["logger@workspace:packages/logger"],
-
-    "logs": ["logs@workspace:packages/logs"],
 
     "minimist": ["minimist@1.2.8", "https://registry.npmmirror.com/minimist/-/minimist-1.2.8.tgz", {}, "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA=="],
 
