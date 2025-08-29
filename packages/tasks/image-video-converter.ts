@@ -1,6 +1,6 @@
 import { calculateFileHash } from "ffmpeg";
 import { existsSync } from "fs";
-import { access, mkdir, readdir, rename, stat, unlink } from "fs/promises";
+import { access, mkdir, readdir, rename, stat } from "fs/promises";
 import { logger } from "logger";
 import { extname, join, resolve } from "path";
 
@@ -63,9 +63,15 @@ const inputImages = inputFiles.filter((file) => {
   return ImageExtensions.includes(extension);
 });
 
-for (const file of inputImages) {
+const VideoExtensions = [".mp4", ".webm", ".ogg", ".ogv"];
+
+const inputVideos = inputFiles.filter((file) => {
+  const extension = extname(file).toLowerCase();
+  return VideoExtensions.includes(extension);
+});
+
+for (const file of [...inputImages, ...inputVideos]) {
   const hashValue = await calculateFileHash(file);
   const outputPath = join(outputDir, `${hashValue}${extname(file)}`);
   await rename(file, outputPath);
-  await unlink(file);
 }
