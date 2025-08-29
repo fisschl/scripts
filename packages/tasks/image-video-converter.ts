@@ -52,20 +52,10 @@ const ImageExtensions = [
   ".jpg",
   ".jpeg",
   ".png",
-  ".bmp",
   ".webp",
-  ".tiff",
-  ".tif",
   ".svg",
-  ".heic",
-  ".heif",
   ".avif",
   ".ico",
-  ".psd",
-  ".cr2",
-  ".nef",
-  ".arw",
-  ".dng",
 ];
 
 const inputImages = inputFiles.filter((file) => {
