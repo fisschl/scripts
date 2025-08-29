@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { calculateFileHash } from "./index";
 import { writeFileSync, rmSync } from "fs";
-import { join } from "path";
+import { resolve } from "path";
 
 describe("calculateFileHash", () => {
-  const testFilePath = join(import.meta.dir, "test-file.txt");
+  const testFilePath = resolve("./test-file.txt");
   const testContent = "This is a test file for hashing";
 
   beforeEach(() => {
@@ -32,7 +32,7 @@ describe("calculateFileHash", () => {
 
   it("相同内容的文件应该产生相同的哈希值", async () => {
     // 创建另一个具有相同内容的文件
-    const testFile2Path = join(import.meta.dir, "test-file2.txt");
+    const testFile2Path = resolve("./test-file2.txt");
     writeFileSync(testFile2Path, testContent);
 
     const hash1 = await calculateFileHash(testFilePath);
@@ -47,7 +47,7 @@ describe("calculateFileHash", () => {
 
   it("不同内容的文件应该产生不同的哈希值", async () => {
     // 创建另一个具有不同内容的文件
-    const testFile3Path = join(import.meta.dir, "test-file3.txt");
+    const testFile3Path = resolve("./test-file3.txt");
     const differentContent = "This is a different test file for hashing";
     writeFileSync(testFile3Path, differentContent);
 

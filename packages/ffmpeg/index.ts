@@ -3,7 +3,7 @@ import { blake3 } from "@noble/hashes/blake3";
 import { base32crockford } from "@scure/base";
 import { logger } from "logger";
 
-export { prepareFFmpegExecutable, convertToWebM } from "./video";
+export { convertToWebM } from "./video";
 
 /**
  * 将图片转换为WebP格式（无损压缩）

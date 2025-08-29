@@ -12,8 +12,7 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "date-fns": "^4.1.0",
-    "pino": "^8.21.0",
-    "pino-pretty": "^10.3.1"
+    "consola": "^3.4.2",
+    "date-fns": "^4.1.0"
   }
 }

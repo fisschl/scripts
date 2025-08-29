@@ -5,13 +5,13 @@ import { join } from "path";
 import { v7 } from "uuid";
 import { logger } from "logger";
 
-export const FFMPEG_PATH = join(tmpdir(), "ffmpeg.exe");
-export const FFPROBE_PATH = join(tmpdir(), "ffprobe.exe");
+const FFMPEG_PATH = join(tmpdir(), "ffmpeg.exe");
+const FFPROBE_PATH = join(tmpdir(), "ffprobe.exe");
 
 /**
  * 准备FFmpeg可执行文件
  */
-export const prepareFFmpegExecutable = async () => {
+const prepareFFmpegExecutable = async () => {
   if (!existsSync(FFMPEG_PATH)) {
     logger.info("开始下载FFmpeg可执行文件...");
     // 使用PowerShell的Invoke-WebRequest直接下载文件
