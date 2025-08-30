@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { logger } from "./index";
+import { logger } from "./logger";
 
 describe("logs 模块", () => {
   it("应该创建一个 logger 实例", () => {

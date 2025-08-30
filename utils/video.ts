@@ -3,7 +3,7 @@ import { existsSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { v7 } from "uuid";
-import { logger } from "logger";
+import { logger } from "./logger";
 
 const FFMPEG_PATH = join(tmpdir(), "ffmpeg.exe");
 const FFPROBE_PATH = join(tmpdir(), "ffprobe.exe");

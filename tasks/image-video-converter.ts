@@ -1,7 +1,7 @@
-import { calculateFileHash } from "ffmpeg";
+import { calculateFileHash } from "../utils/ffmpeg";
 import { existsSync } from "fs";
 import { access, mkdir, readdir, rename, stat } from "fs/promises";
-import { logger } from "logger";
+import { logger } from "../utils/logger";
 import { extname, join, resolve } from "path";
 
 const inputDir = resolve("./input");

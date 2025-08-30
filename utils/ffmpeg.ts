@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { blake3 } from "@noble/hashes/blake3";
 import { base32crockford } from "@scure/base";
-import { logger } from "logger";
+import { logger } from "./logger";
 
 export { convertToWebM } from "./video";
 
