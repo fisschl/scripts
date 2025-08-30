@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { calculateFileHash } from "./ffmpeg";
+import { calculateFileHash } from "./hash";
 import { writeFileSync, rmSync } from "fs";
 import { resolve } from "path";
 
