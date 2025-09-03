@@ -1,24 +1,48 @@
+mod commands;
 mod utils;
 
-use clap::Parser;
-use crate::utils::hash::calculate_file_hash;
+use clap::{Parser, Subcommand};
+use dotenv::dotenv;
 
-/// 文件哈希计算器 - 基于 Blake3 算法的高效文件哈希计算工具
+/// 多功能工具 - 文件哈希计算和S3操作工具
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// 要计算哈希值的文件路径
-    #[arg(required = true, help = "指定要计算哈希值的文件路径")]
-    file_path: String,
+    #[command(subcommand)]
+    command: Commands,
 }
 
-fn main() {
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// 计算文件的哈希值
+    Hash {
+        /// 要计算哈希值的文件路径
+        #[arg(help = "指定要计算哈希值的文件路径")]
+        file_path: String,
+    },
+    /// 在S3中查找空文件
+    FindEmptyS3Files {
+        /// 可选的前缀路径，用于限制搜索范围
+        #[arg(short, long, help = "指定搜索前缀路径")]
+        prefix: Option<String>,
+    },
+}
+
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    dotenv().ok();
+
     // 解析命令行参数
     let args = Args::parse();
-    
-    // 计算文件哈希值
-    match calculate_file_hash(&args.file_path) {
-        Ok(hash) => println!("文件哈希值: {}", hash),
-        Err(err) => eprintln!("计算哈希值失败: {}", err),
+
+    match args.command {
+        Commands::Hash { file_path } => {
+            commands::execute_hash(file_path).await?;
+        }
+        Commands::FindEmptyS3Files { prefix } => {
+            commands::execute_find_empty_s3_files(prefix).await?;
+        }
     }
+
+    Ok(())
 }

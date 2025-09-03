@@ -1,15 +1,20 @@
 [package]
-name = "file-hasher"
+name = "scripts"
 version = "0.1.0"
 edition = "2024"
-authors = ["Your Name <your.email@example.com>"]
-description = "基于 Blake3 算法的高效文件哈希计算工具"
 license = "MIT"
 
 [dependencies]
-blake3 = "1.5.0"
-base32 = "0.4.0"
-clap = { version = "4.5.0", features = ["derive"] }
+blake3 = "1.8.2"
+base32 = "0.5.1"
+clap = { version = "4.5.47", features = ["derive"] }
+aws-config = { version = "1.8.6", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1.104.0"
+console = "0.16"
+dotenv = "0.15.0"
+tokio = { version = "1.47", features = ["full"] }
+anyhow = "1.0"
+dialoguer = "0.11"
 
 [dev-dependencies]
-tempfile = "3.10.1"
+tempfile = "3.21.0"

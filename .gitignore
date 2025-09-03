@@ -14,9 +14,6 @@ build/
 target/
 *.rs.bk
 
-# Cargo files
-Cargo.lock
-
 # Code coverage
 coverage
 *.lcov
