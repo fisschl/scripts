@@ -2,7 +2,7 @@ mod commands;
 mod utils;
 
 use clap::{Parser, Subcommand};
-use dotenv::dotenv;
+use commands::{execute_find_empty_s3_files, execute_hash};
 
 /// 多功能工具 - 文件哈希计算和S3操作工具
 #[derive(Parser, Debug)]
@@ -30,17 +30,17 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    dotenv().ok();
+    dotenv::dotenv().ok();
 
     // 解析命令行参数
     let args = Args::parse();
 
     match args.command {
         Commands::Hash { file_path } => {
-            commands::execute_hash(file_path).await?;
+            execute_hash(file_path).await?;
         }
         Commands::FindEmptyS3Files { prefix } => {
-            commands::execute_find_empty_s3_files(prefix).await?;
+            execute_find_empty_s3_files(prefix).await?;
         }
     }
 
