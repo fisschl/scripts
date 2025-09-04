@@ -39,7 +39,7 @@ pub async fn execute_find_empty_s3_files(prefix: Option<String>) -> Result<(), a
 /// 返回 `Result<Vec<String>, anyhow::Error>`，包含空文件的路径列表
 async fn find_empty_files_with_progress(prefix: Option<&str>) -> Result<Vec<String>> {
     let client = init_s3_client().await;
-    let bucket = get_bucket_name()?;
+    let bucket = get_bucket_name();
     let mut empty_files = Vec::new();
     let mut continuation_token = None;
 

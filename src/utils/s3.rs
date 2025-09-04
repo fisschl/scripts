@@ -39,6 +39,6 @@ pub async fn init_s3_client() -> Client {
 ///
 /// # Panics
 /// 如果 `S3_BUCKET` 环境变量未设置，此函数会panic
-pub fn get_bucket_name() -> Result<String, std::env::VarError> {
-    std::env::var("S3_BUCKET")
+pub fn get_bucket_name() -> String {
+    std::env::var("S3_BUCKET").expect("环境变量 S3_BUCKET 未设置，请检查配置！")
 }
