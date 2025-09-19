@@ -23,17 +23,6 @@ use std::path::Path;
 /// - 没有权限访问文件
 /// - 读取文件过程中发生I/O错误
 ///
-/// # 示例
-/// ```
-/// use scripts::utils::hash::calculate_file_hash;
-///
-/// fn main() {
-///     match calculate_file_hash("path/to/file.txt") {
-///         Ok(hash) => println!("文件哈希值: {}", hash),
-///         Err(err) => eprintln!("计算哈希值失败: {}", err),
-///     }
-/// }
-/// ```
 pub fn calculate_file_hash<P: AsRef<Path>>(file_path: P) -> Result<String, io::Error> {
     // 创建Blake3哈希器
     let mut hasher = Hasher::new();
