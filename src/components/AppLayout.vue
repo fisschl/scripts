@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Hash } from 'lucide-vue-next'
 import { computed, markRaw } from 'vue'
-import { useRoute } from 'vue-router'
 
 const route = useRoute()
 

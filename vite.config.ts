@@ -13,7 +13,7 @@ export default defineConfig(() => ({
     VueRouter(),
     vue(),
     AutoImport({
-      imports: [VueRouterAutoImports],
+      imports: ['vue', VueRouterAutoImports],
       resolvers: [ElementPlusResolver()],
     }),
     Components({
