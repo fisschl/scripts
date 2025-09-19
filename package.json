@@ -13,6 +13,7 @@
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2.5.0",
     "@vueuse/core": "^13.9.0",
+    "element-plus": "^2.11.3",
     "gsap": "^3.13.0",
     "lucide-vue-next": "^0.544.0",
     "vue": "^3.5.21"
@@ -30,6 +31,7 @@
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.2",
     "unplugin-auto-import": "^20.1.0",
+    "unplugin-vue-components": "^29.0.0",
     "unplugin-vue-router": "^0.15.0",
     "vite": "^7.1.6",
     "vue-router": "^4.5.1",

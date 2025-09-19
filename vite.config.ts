@@ -1,23 +1,23 @@
-import process from 'node:process'
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
+import Components from 'unplugin-vue-components/vite'
 import { VueRouterAutoImports } from 'unplugin-vue-router'
 import VueRouter from 'unplugin-vue-router/vite'
 import { defineConfig } from 'vite'
-
-const { TAURI_DEV_HOST } = process.env
-console.log(TAURI_DEV_HOST)
 
 export default defineConfig(() => ({
   plugins: [
     VueRouter(),
     vue(),
     AutoImport({
-      imports: [
-        VueRouterAutoImports,
-      ],
+      imports: [VueRouterAutoImports],
+      resolvers: [ElementPlusResolver()],
+    }),
+    Components({
+      resolvers: [ElementPlusResolver()],
     }),
     tailwindcss(),
   ],
@@ -30,14 +30,7 @@ export default defineConfig(() => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: TAURI_DEV_HOST || false,
-    hmr: TAURI_DEV_HOST
-      ? {
-          protocol: 'ws',
-          host: TAURI_DEV_HOST,
-          port: 1421,
-        }
-      : undefined,
+    host: false,
     watch: {
       ignored: ['**/src-tauri/**'],
     },
