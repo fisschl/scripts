@@ -4,12 +4,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "lint": "eslint . --fix && vue-tsc --noEmit",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "lint": "eslint . --fix && vue-tsc --noEmit"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",

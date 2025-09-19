@@ -1,7 +1,8 @@
+import process from 'node:process'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 
-const { TAURI_DEV_HOST } = Bun.env
+const { TAURI_DEV_HOST } = process.env
 console.log(TAURI_DEV_HOST)
 
 export default defineConfig(() => ({
