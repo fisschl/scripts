@@ -1,1 +1,7 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "MiSans", system-ui;
+  --font-mono: "Fira Code Variable", "MiSans", monospace;
+}

@@ -9,8 +9,7 @@ watchEffect(() => {
   const { classList } = document.documentElement
   if (isDark.value)
     classList.add('dark')
-  else
-    classList.remove('dark')
+  else classList.remove('dark')
 })
 </script>
 
@@ -20,7 +19,11 @@ watchEffect(() => {
 
 <style>
 html {
-  color-scheme: light dark;
+  font-family: var(--font-sans);
+}
+
+body {
+  font-family: inherit;
 }
 
 #app {
