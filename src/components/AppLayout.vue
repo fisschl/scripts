@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Hash } from 'lucide-vue-next'
 import { computed, markRaw } from 'vue'
+import { useRoute } from 'vue-router'
 
 const route = useRoute()
 
@@ -10,16 +11,20 @@ const examples = computed(() => {
       name: '计算文件哈希值',
       path: '/file-hash',
       icon: markRaw(Hash),
-      isActive: route,
+      isActive: route.path.startsWith('/file-hash'),
     },
   ]
+})
+
+const activeExample = computed(() => {
+  return examples.value.find(example => example.isActive)
 })
 </script>
 
 <template>
   <div class="flex h-screen min-h-0">
     <ElMenu
-      :default-active="$route.path"
+      :default-active="activeExample?.path"
       class="h-full"
       router
       :class="$style.aside"

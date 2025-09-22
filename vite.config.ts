@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
+import ElementPlus from 'unplugin-element-plus/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import Components from 'unplugin-vue-components/vite'
 import { VueRouterAutoImports } from 'unplugin-vue-router'
@@ -17,8 +18,10 @@ export default defineConfig(() => ({
       resolvers: [ElementPlusResolver()],
     }),
     Components({
+      deep: false,
       resolvers: [ElementPlusResolver()],
     }),
+    ElementPlus({}),
     tailwindcss(),
   ],
   clearScreen: false,
