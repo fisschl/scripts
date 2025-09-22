@@ -11,9 +11,9 @@
 - 表单验证和错误处理
 
 ### 🔍 文件哈希工具
-- 计算文件的多种哈希值（MD5、SHA1、SHA256等）
-- 支持文件拖拽和选择
-- 哈希结果复制和导出功能
+- 计算文件的 Blake3 哈希值
+- 通过文件选择器选择文件
+- 显示哈希计算结果
 
 ## 🚀 技术栈
 
@@ -26,22 +26,16 @@
 
 ## 📦 安装和运行
 
-### 前置要求
-
-- Node.js 18+ 和 npm/bun
-- Rust 工具链 (安装 Tauri 所需)
-
 ### 开发环境
 
 ```bash
-# 安装依赖
-npm install
+bun install
 
 # 启动开发服务器
-npm run tauri dev
+bun run tauri dev
 
 # 构建生产版本
-npm run tauri build
+bun run tauri build
 ```
 
 ### 生产构建
@@ -52,13 +46,6 @@ npm run tauri build
 
 # 构建完成后，应用位于 src-tauri/target/release/ 目录
 ```
-
-## 🎨 界面特色
-
-- 现代化设计，支持深色/浅色模式
-- 响应式布局，适配不同屏幕尺寸
-- 流畅的动画过渡效果
-- 直观的用户交互体验
 
 ## 🔧 开发指南
 
@@ -72,7 +59,6 @@ npm run tauri build
 ### 样式规范
 
 - 使用 Tailwind CSS 进行样式开发
-- 遵循 BEM 命名规范
 - 确保深色模式兼容性
 
 ## 🤝 贡献
