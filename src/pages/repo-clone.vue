@@ -4,13 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ElMessage } from 'element-plus'
 import { GitBranch } from 'lucide-vue-next'
-import {
-  onBeforeUnmount,
-  onMounted,
-  reactive,
-  ref,
-  useTemplateRef,
-} from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref, useTemplateRef } from 'vue'
 
 // 表单数据
 const form = reactive({
@@ -34,8 +28,7 @@ const rules = reactive<FormRules>({
 })
 
 const loading = ref(false)
-const progressMessages = ref<string[]>([
-])
+const progressMessages = ref<string[]>([])
 
 async function startClone() {
   await formRef.value?.validate()
@@ -49,11 +42,16 @@ async function startClone() {
       to: form.targetUrl,
     })
   }
-  catch (error: any) {
+  catch (error: unknown) {
     loading.value = false
     progressMessages.value.push(`❌ 错误: ${error}`)
     ElMessage.error(`克隆失败: ${error}`)
   }
+  finally {
+    loading.value = false
+  }
+
+  ElMessage.success('仓库克隆操作完成')
 }
 
 const effects: (() => unknown)[] = []
@@ -77,7 +75,14 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="p-6">
-    <ElForm ref="form-ref" :model="form" :rules="rules" label-position="top" label-suffix="：" @submit.prevent="startClone">
+    <ElForm
+      ref="form-ref"
+      :model="form"
+      :rules="rules"
+      label-position="top"
+      label-suffix="："
+      @submit.prevent="startClone"
+    >
       <ElFormItem label="源仓库 URL" prop="sourceUrl">
         <ElInput
           v-model="form.sourceUrl"
