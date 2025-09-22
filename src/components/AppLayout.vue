@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ElScrollbar } from 'element-plus'
 import { GitBranch, Hash } from 'lucide-vue-next'
 import { computed, markRaw } from 'vue'
 import { useRoute } from 'vue-router'
@@ -29,23 +30,27 @@ const activeExample = computed(() => {
 
 <template>
   <div class="flex h-screen min-h-0">
-    <ElMenu
-      :default-active="activeExample?.path"
-      class="h-full"
-      router
+    <ElScrollbar
       :class="$style.aside"
+      class="h-full"
     >
-      <ElMenuItem
-        v-for="example in examples"
-        :key="example.name"
-        :index="example.path"
+      <ElMenu
+        :default-active="activeExample?.path"
+        router
+        class="w-full min-h-screen"
       >
-        <ElIcon>
-          <component :is="example.icon" />
-        </ElIcon>
-        <span>{{ example.name }}</span>
-      </ElMenuItem>
-    </ElMenu>
+        <ElMenuItem
+          v-for="example in examples"
+          :key="example.name"
+          :index="example.path"
+        >
+          <ElIcon>
+            <component :is="example.icon" />
+          </ElIcon>
+          <span>{{ example.name }}</span>
+        </ElMenuItem>
+      </ElMenu>
+    </ElScrollbar>
     <main
       class="flex-1 overflow-auto min-h-0 max-h-full relative transition-colors duration-200"
     >

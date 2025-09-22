@@ -20,6 +20,7 @@ watchEffect(() => {
 <style>
 html {
   font-family: var(--font-sans);
+  color-scheme: light dark;
 }
 
 body {
