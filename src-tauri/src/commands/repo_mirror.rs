@@ -34,7 +34,7 @@ use tauri::{AppHandle, Emitter};
 ///
 /// # 事件通知
 /// - `repo-mirror-info`: 进度信息通知，包含当前操作状态
-/// - `repo-mirror-success`: 操作成功完成通知
+/// - 操作成功完成通过函数正常返回表示，无需额外事件
 ///
 /// # 错误处理
 /// - 所有 Git 命令执行失败都会返回详细的错误信息
@@ -233,11 +233,6 @@ pub fn repo_mirror(app_handle: AppHandle, from: String, to: String) -> Result<()
     // 通过 drop 临时目录句柄来确保目录被删除
     // tempfile crate 会在 temp_dir 离开作用域时自动删除临时目录
     drop(temp_dir);
-
-    // 发送完成通知
-    app_handle
-        .emit("repo-mirror-success", "仓库镜像操作完成！")
-        .unwrap();
 
     Ok(())
 }

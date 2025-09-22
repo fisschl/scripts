@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Hash } from 'lucide-vue-next'
+import { GitBranch, Hash } from 'lucide-vue-next'
 import { computed, markRaw } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -12,6 +12,12 @@ const examples = computed(() => {
       path: '/file-hash',
       icon: markRaw(Hash),
       isActive: route.path.startsWith('/file-hash'),
+    },
+    {
+      name: 'Git 仓库克隆',
+      path: '/repo-clone',
+      icon: markRaw(GitBranch),
+      isActive: route.path.startsWith('/repo-clone'),
     },
   ]
 })
@@ -41,7 +47,7 @@ const activeExample = computed(() => {
       </ElMenuItem>
     </ElMenu>
     <main
-      class="flex-1 overflow-hidden relative transition-colors duration-200"
+      class="flex-1 overflow-auto min-h-0 max-h-full relative transition-colors duration-200"
     >
       <RouterView />
     </main>
