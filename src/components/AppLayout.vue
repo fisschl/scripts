@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElScrollbar } from 'element-plus'
-import { GitBranch, Hash } from 'lucide-vue-next'
+import { Copy, GitBranch, Hash } from 'lucide-vue-next'
 import { computed, markRaw } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -13,6 +13,12 @@ const examples = computed(() => {
       path: '/file-hash',
       icon: markRaw(Hash),
       isActive: route.path.startsWith('/file-hash'),
+    },
+    {
+      name: '文件复制',
+      path: '/file-copy',
+      icon: markRaw(Copy),
+      isActive: route.path.startsWith('/file-copy'),
     },
     {
       name: 'Git 仓库克隆',

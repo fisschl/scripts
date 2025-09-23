@@ -5,6 +5,7 @@ import { listen } from '@tauri-apps/api/event'
 import { ElMessage } from 'element-plus'
 import { GitBranch } from 'lucide-vue-next'
 import { onBeforeUnmount, onMounted, reactive, ref, useTemplateRef } from 'vue'
+import LogViewer from '@/components/LogViewer.vue'
 
 // 表单数据
 const form = reactive({
@@ -110,11 +111,7 @@ onBeforeUnmount(() => {
         </ElButton>
       </div>
     </ElForm>
-    <ol class="py-6 space-y-1 text-gray-500 dark:text-gray-400">
-      <li v-for="(message, index) in progressMessages" :key="index">
-        {{ message }}
-      </li>
-    </ol>
+    <LogViewer :logs="progressMessages" class="my-6" />
   </div>
 </template>
 
