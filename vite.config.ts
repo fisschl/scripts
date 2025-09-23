@@ -11,7 +11,9 @@ import { defineConfig } from 'vite'
 
 export default defineConfig(() => ({
   plugins: [
-    VueRouter(),
+    VueRouter({
+      exclude: ['**/utils/**', '**/components/**', '**/assets/**'],
+    }),
     vue(),
     AutoImport({
       imports: ['vue', VueRouterAutoImports],
