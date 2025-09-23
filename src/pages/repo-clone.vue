@@ -115,12 +115,6 @@ onBeforeUnmount(() => {
         {{ message }}
       </li>
     </ol>
-
-    <article>
-      <p>
-        说明：
-      </p>“
-    </article>
   </div>
 </template>
 
