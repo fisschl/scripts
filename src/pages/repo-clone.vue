@@ -44,7 +44,7 @@ async function startClone() {
   }
   catch (error: unknown) {
     loading.value = false
-    progressMessages.value.push(`❌ 错误: ${error}`)
+    progressMessages.value.push(`错误: ${error}`)
     ElMessage.error(`克隆失败: ${error}`)
   }
   finally {
