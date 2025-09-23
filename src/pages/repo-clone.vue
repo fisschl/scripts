@@ -75,7 +75,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="p-6">
+  <div class="p-4">
     <ElForm
       ref="form-ref"
       :model="form"
@@ -111,7 +111,7 @@ onBeforeUnmount(() => {
         </ElButton>
       </div>
     </ElForm>
-    <LogViewer :logs="progressMessages" class="my-6" />
+    <LogViewer :logs="progressMessages" class="my-4" />
   </div>
 </template>
 
