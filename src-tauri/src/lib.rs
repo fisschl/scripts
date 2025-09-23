@@ -9,7 +9,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::calculate_file_hash,
             commands::repo_mirror,
-            commands::copy_files_with_options
+            commands::copy_files_with_options,
+            commands::upload_to_s3
         ])
         .run(tauri::generate_context!())
         .expect("Error while running tauri application.");
