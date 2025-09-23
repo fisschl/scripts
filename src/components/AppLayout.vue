@@ -35,34 +35,32 @@ const activeExample = computed(() => {
 </script>
 
 <template>
-  <div class="flex h-screen min-h-0">
-    <ElScrollbar
-      :class="$style.aside"
-      class="h-full"
+  <ElScrollbar
+    :class="$style.aside"
+    class="h-full shrink-0"
+  >
+    <ElMenu
+      :default-active="activeExample?.path"
+      router
+      class="w-full min-h-screen"
     >
-      <ElMenu
-        :default-active="activeExample?.path"
-        router
-        class="w-full min-h-screen"
+      <ElMenuItem
+        v-for="example in examples"
+        :key="example.name"
+        :index="example.path"
       >
-        <ElMenuItem
-          v-for="example in examples"
-          :key="example.name"
-          :index="example.path"
-        >
-          <ElIcon>
-            <component :is="example.icon" />
-          </ElIcon>
-          <span>{{ example.name }}</span>
-        </ElMenuItem>
-      </ElMenu>
-    </ElScrollbar>
-    <main
-      class="flex-1 overflow-auto min-h-0 max-h-full relative transition-colors duration-200"
-    >
-      <RouterView />
-    </main>
-  </div>
+        <ElIcon>
+          <component :is="example.icon" />
+        </ElIcon>
+        <span>{{ example.name }}</span>
+      </ElMenuItem>
+    </ElMenu>
+  </ElScrollbar>
+  <main
+    class="flex-1 overflow-auto min-h-0 max-h-full"
+  >
+    <RouterView />
+  </main>
 </template>
 
 <style module>

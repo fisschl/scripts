@@ -18,17 +18,18 @@ watchEffect(() => {
 </template>
 
 <style>
-html {
-  font-family: var(--font-sans);
-  color-scheme: light dark;
-}
-
-body {
-  font-family: inherit;
-}
-
 #app {
   height: 100vh;
   overflow: hidden;
+  display: flex;
+}
+
+html {
+  font-family: var(--font-sans);
+  color-scheme: light dark;
+
+  body {
+    font-family: inherit;
+  }
 }
 </style>
