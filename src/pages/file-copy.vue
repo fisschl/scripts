@@ -53,7 +53,7 @@ const FORM_STORAGE_KEY = 'file-copy-form'
 const store = Store.load('form-data.json')
 
 // 初始化时加载保存的表单数据
-await store.then(async (store) => {
+store.then(async (store) => {
   const result = FormDataZod.safeParse(await store.get(FORM_STORAGE_KEY))
   if (!result.success)
     return
