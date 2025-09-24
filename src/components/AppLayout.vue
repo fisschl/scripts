@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElScrollbar } from 'element-plus'
-import { Copy, GitBranch, Hash } from 'lucide-vue-next'
+import { CloudUpload, Copy, GitBranch, Hash } from 'lucide-vue-next'
 import { computed, markRaw } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -25,6 +25,12 @@ const examples = computed(() => {
       path: '/repo-clone',
       icon: markRaw(GitBranch),
       isActive: route.path.startsWith('/repo-clone'),
+    },
+    {
+      name: 'S3 上传',
+      path: '/s3-upload',
+      icon: markRaw(CloudUpload),
+      isActive: route.path.startsWith('/s3-upload'),
     },
   ]
 })

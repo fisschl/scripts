@@ -3,7 +3,9 @@ import type { FormRules } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-dialog'
+import { Store } from '@tauri-apps/plugin-store'
 import { ElMessage } from 'element-plus'
+import { merge } from 'lodash-es'
 import { Copy, Folder } from 'lucide-vue-next'
 import {
   onBeforeUnmount,
@@ -53,6 +55,17 @@ const rules = reactive<FormRules>({
 const loading = ref(false)
 const progressMessages = ref<string[]>([])
 
+const FORM_STORAGE_KEY = 'file-copy-form'
+const store = Store.load('form-data.json')
+
+// 初始化时加载保存的表单数据
+await store.then(async (store) => {
+  const savedData = await store.get<FormData>(FORM_STORAGE_KEY)
+  if (!savedData)
+    return
+  merge(form, savedData)
+})
+
 async function selectSourcePath() {
   const selected = await open({
     multiple: false,
@@ -75,6 +88,12 @@ async function selectTargetPath() {
 
 async function startCopy() {
   await formRef.value?.validate()
+
+  // 保存表单数据
+  await store.then(async (store) => {
+    await store.set(FORM_STORAGE_KEY, form)
+    await store.save()
+  })
 
   loading.value = true
   progressMessages.value = ['开始文件复制操作...']
@@ -171,9 +190,7 @@ onBeforeUnmount(() => {
 
       <div class="mt-4">
         <ElButton type="primary" :loading="loading" native-type="submit">
-          <template #icon>
-            <Copy />
-          </template>
+          <Copy :size="18" class="mr-2" />
           开始复制
         </ElButton>
       </div>

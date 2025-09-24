@@ -8,6 +8,7 @@
         "@tauri-apps/api": "^2.8.0",
         "@tauri-apps/plugin-dialog": "^2.4.0",
         "@tauri-apps/plugin-opener": "^2.5.0",
+        "@tauri-apps/plugin-store": "^2.4.0",
         "@vueuse/core": "^13.9.0",
         "element-plus": "^2.11.3",
         "gsap": "^3.13.0",
@@ -283,6 +284,8 @@
     "@tauri-apps/plugin-dialog": ["@tauri-apps/plugin-dialog@2.4.0", "https://registry.npmmirror.com/@tauri-apps/plugin-dialog/-/plugin-dialog-2.4.0.tgz", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-OvXkrEBfWwtd8tzVCEXIvRfNEX87qs2jv6SqmVPiHcJjBhSF/GUvjqUNIDmKByb5N8nvDqVUM7+g1sXwdC/S9w=="],
 
     "@tauri-apps/plugin-opener": ["@tauri-apps/plugin-opener@2.5.0", "https://registry.npmmirror.com/@tauri-apps/plugin-opener/-/plugin-opener-2.5.0.tgz", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-B0LShOYae4CZjN8leiNDbnfjSrTwoZakqKaWpfoH6nXiJwt6Rgj6RnVIffG3DoJiKsffRhMkjmBV9VeilSb4TA=="],
+
+    "@tauri-apps/plugin-store": ["@tauri-apps/plugin-store@2.4.0", "https://registry.npmmirror.com/@tauri-apps/plugin-store/-/plugin-store-2.4.0.tgz", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-PjBnlnH6jyI71MGhrPaxUUCsOzc7WO1mbc4gRhME0m2oxLgCqbksw6JyeKQimuzv4ysdpNO3YbmaY2haf82a3A=="],
 
     "@tsconfig/bun": ["@tsconfig/bun@1.0.8", "https://registry.npmmirror.com/@tsconfig/bun/-/bun-1.0.8.tgz", {}, "sha512-JlJaRaS4hBTypxtFe8WhnwV8blf0R+3yehLk8XuyxUYNx6VXsKCjACSCvOYEFUiqlhlBWxtYCn/zRlOb8BzBQg=="],
 

@@ -104,9 +104,7 @@ onBeforeUnmount(() => {
 
       <div class="mt-4">
         <ElButton type="primary" :loading="loading" native-type="submit">
-          <template #icon>
-            <GitBranch />
-          </template>
+          <GitBranch :size="18" class="mr-2" />
           开始克隆
         </ElButton>
       </div>
