@@ -9,7 +9,7 @@ import { ElMessage } from 'element-plus'
 import { merge } from 'lodash-es'
 import { CloudUpload, Database, Folder, Globe, Key, MapPin } from 'lucide-vue-next'
 import { onBeforeUnmount, onMounted, reactive, ref, useTemplateRef } from 'vue'
-import { array, object, string } from 'zod/mini'
+import { object, string } from 'zod/mini'
 import LogViewer from '@/components/LogViewer.vue'
 
 const S3ConfigZod = object({
