@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
+use mime_guess;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -199,6 +200,7 @@ async fn create_s3_client(config: &S3Config) -> Result<Client> {
 /// - 使用流式传输，支持大文件上传
 /// - 自动处理文件内容的字节流转换
 /// - 提供详细的错误上下文信息，便于问题定位
+/// - 自动检测并设置 Content-Type，确保文件在 S3 中正确显示
 async fn upload_file_to_s3(
     client: &Client,
     bucket: &str,
@@ -209,14 +211,27 @@ async fn upload_file_to_s3(
         .await
         .with_context(|| format!("读取文件失败: {}", local_path.display()))?;
 
+    // 根据文件扩展名自动检测 MIME 类型
+    let mime_type = mime_guess::from_path(local_path)
+        .first_or_octet_stream()
+        .to_string();
+
     client
         .put_object()
         .bucket(bucket)
         .key(s3_key)
+        .content_type(&mime_type)
         .body(body)
         .send()
         .await
-        .with_context(|| format!("上传文件失败: {} -> {}", local_path.display(), s3_key))?;
+        .with_context(|| {
+            format!(
+                "上传文件失败: {} (Content-Type: {}) -> {}",
+                local_path.display(),
+                mime_type,
+                s3_key
+            )
+        })?;
 
     Ok(())
 }
@@ -287,7 +302,7 @@ pub async fn sync_directory_to_s3(
 
     // 移除前导斜杠（如果有的话）
     let remote_dir = remote_dir.trim_start_matches('/');
-    
+
     // 确保远程目录路径以 / 结尾
     let remote_prefix = if remote_dir.ends_with('/') {
         remote_dir.to_string()
