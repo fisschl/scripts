@@ -29,9 +29,9 @@ const form = reactive<Infer<typeof FormDataZod>>({
   s3_config: {
     access_key_id: '',
     secret_access_key: '',
-    region: 'us-east-1',
+    region: 'tos-s3-cn-shanghai',
     bucket: '',
-    endpoint_url: 'https://s3.amazonaws.com',
+    endpoint_url: 'https://tos-s3-cn-shanghai.volces.com',
   },
   local_dir: '',
   remote_dir: '',
@@ -102,13 +102,10 @@ async function startUpload() {
 
   try {
     const params = JSON.stringify(form)
-    const result = await invoke('upload_to_s3', { params })
+    await invoke('upload_to_s3', { params })
 
-    if (typeof result !== 'number')
-      throw new Error('S3 上传操作返回非数字类型')
-
-    progressMessages.value.push(`上传完成，共处理 ${result} 个文件`)
-    ElMessage.success(`S3 上传完成，共处理 ${result} 个文件`)
+    progressMessages.value.push('上传完成')
+    ElMessage.success('S3 上传完成')
   }
   catch (error: unknown) {
     progressMessages.value.push(`错误: ${error}`)
@@ -154,7 +151,7 @@ onBeforeUnmount(() => {
 
       <ElFormItem label="Access Key ID" prop="s3_config.access_key_id">
         <ElInput
-          v-model="form.s3_config.access_key_id"
+          v-model.trim="form.s3_config.access_key_id"
           placeholder="请输入 AWS Access Key ID"
           :class="$style.input"
           :disabled="loading"
@@ -169,7 +166,7 @@ onBeforeUnmount(() => {
 
       <ElFormItem label="Secret Access Key" prop="s3_config.secret_access_key">
         <ElInput
-          v-model="form.s3_config.secret_access_key"
+          v-model.trim="form.s3_config.secret_access_key"
           placeholder="请输入 AWS Secret Access Key"
           type="password"
           show-password
@@ -186,9 +183,9 @@ onBeforeUnmount(() => {
 
       <ElFormItem label="区域 (Region)" prop="s3_config.region">
         <ElInput
-          v-model="form.s3_config.region"
-          placeholder="例如: us-east-1, cn-north-1"
-          :class="$style.input"
+          v-model.trim="form.s3_config.region"
+          placeholder="例如: tos-s3-cn-shanghai, us-east-1"
+          :class="$style.regionInput"
           :disabled="loading"
         >
           <template #prefix>
@@ -199,31 +196,31 @@ onBeforeUnmount(() => {
         </ElInput>
       </ElFormItem>
 
-      <ElFormItem label="存储桶名称 (Bucket)" prop="s3_config.bucket">
-        <ElInput
-          v-model="form.s3_config.bucket"
-          placeholder="请输入 S3 存储桶名称"
-          :class="$style.input"
-          :disabled="loading"
-        >
-          <template #prefix>
-            <ElIcon>
-              <Database />
-            </ElIcon>
-          </template>
-        </ElInput>
-      </ElFormItem>
-
       <ElFormItem label="终端节点 URL (Endpoint)" prop="s3_config.endpoint_url">
         <ElInput
-          v-model="form.s3_config.endpoint_url"
-          placeholder="例如: https://s3.amazonaws.com (AWS) 或 https://minio.example.com (MinIO)"
+          v-model.trim="form.s3_config.endpoint_url"
+          placeholder="例如: https://tos-s3-cn-shanghai.volces.com (Volces) 或 https://s3.amazonaws.com (AWS)"
           :class="$style.input"
           :disabled="loading"
         >
           <template #prefix>
             <ElIcon>
               <Globe />
+            </ElIcon>
+          </template>
+        </ElInput>
+      </ElFormItem>
+
+      <ElFormItem label="存储桶名称 (Bucket)" prop="s3_config.bucket">
+        <ElInput
+          v-model.trim="form.s3_config.bucket"
+          placeholder="请输入 S3 存储桶名称"
+          :class="$style.bucketInput"
+          :disabled="loading"
+        >
+          <template #prefix>
+            <ElIcon>
+              <Database />
             </ElIcon>
           </template>
         </ElInput>
@@ -251,7 +248,7 @@ onBeforeUnmount(() => {
 
       <ElFormItem label="远程目录路径" prop="remote_dir">
         <ElInput
-          v-model="form.remote_dir"
+          v-model.trim="form.remote_dir"
           placeholder="例如: website/ 或 backup/2024/ (建议以斜杠结尾)"
           :class="$style.input"
           :disabled="loading"
@@ -278,5 +275,13 @@ onBeforeUnmount(() => {
 <style module>
 .input {
   max-width: 40rem;
+}
+
+.bucketInput {
+  max-width: 20rem;
+}
+
+.regionInput {
+  max-width: 20rem;
 }
 </style>

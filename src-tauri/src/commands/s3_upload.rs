@@ -285,9 +285,12 @@ pub async fn sync_directory_to_s3(
         .await
         .map_err(|e| format!("创建 S3 客户端失败: {}", e))?;
 
+    // 移除前导斜杠（如果有的话）
+    let remote_dir = remote_dir.trim_start_matches('/');
+    
     // 确保远程目录路径以 / 结尾
     let remote_prefix = if remote_dir.ends_with('/') {
-        remote_dir.clone()
+        remote_dir.to_string()
     } else {
         format!("{}/", remote_dir)
     };
@@ -688,11 +691,6 @@ async fn execute_operations(
 /// # 执行流程
 /// 1. **参数解析**：将 JSON 字符串解析为 `S3UploadParams` 结构体
 /// 2. **同步执行**：调用 `sync_directory_to_s3` 函数执行实际的同步操作
-/// 3. **结果转换**：将同步结果转换为前端期望的格式
-///
-/// # 返回值说明
-/// - **成功时**：返回 `Ok(0)`，表示同步操作成功完成
-/// - **失败时**：返回 `Err(String)`，包含详细的错误描述信息
 ///
 /// # 错误处理
 /// - **参数解析错误**：JSON 格式不正确或缺少必要字段时返回解析错误
@@ -712,15 +710,13 @@ async fn execute_operations(
 /// - `params`: S3 上传参数的 JSON 字符串，格式必须符合 `S3UploadParams` 结构体定义
 ///
 /// # 返回值
-/// - 成功时返回 `Ok(0)`，表示同步操作成功完成
+/// - 成功时返回 `Ok(())`，表示同步操作成功完成
 /// - 失败时返回 `Err(String)`，包含详细的错误信息字符串
-pub async fn upload_to_s3(params: String, app_handle: AppHandle) -> Result<u64, String> {
+pub async fn upload_to_s3(params: String, app_handle: AppHandle) -> Result<(), String> {
     // 解析 JSON 参数
     let upload_params: S3UploadParams =
         serde_json::from_str(&params).map_err(|e| format!("解析参数失败: {}", e))?;
 
     // 执行同步
-    sync_directory_to_s3(upload_params, app_handle)
-        .await
-        .map(|_| 0)
+    sync_directory_to_s3(upload_params, app_handle).await
 }

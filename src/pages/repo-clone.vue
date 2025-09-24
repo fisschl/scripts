@@ -84,7 +84,7 @@ onBeforeUnmount(() => {
     >
       <ElFormItem label="源仓库 URL" prop="sourceUrl">
         <ElInput
-          v-model="form.sourceUrl"
+          v-model.trim="form.sourceUrl"
           placeholder="https://github.com/username/repo.git"
           :class="$style.input"
           :disabled="loading"
@@ -93,7 +93,7 @@ onBeforeUnmount(() => {
 
       <ElFormItem label="目标仓库 URL" prop="targetUrl">
         <ElInput
-          v-model="form.targetUrl"
+          v-model.trim="form.targetUrl"
           placeholder="https://gitlab.com/username/repo.git"
           :class="$style.input"
           :disabled="loading"

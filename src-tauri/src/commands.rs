@@ -75,13 +75,13 @@ pub fn copy_files_with_options(
 /// - `app_handle`: Tauri 应用句柄，用于发送进度事件
 ///
 /// # 返回值
-/// - 成功时返回上传的文件数量
+/// - 成功时返回 Ok(())
 /// - 失败时返回错误信息字符串
 ///
 /// # 进度事件
 /// 在上传过程中，会通过 Tauri 事件系统发送 "s3-sync-progress" 事件到前端，
 /// 包含当前的操作状态和文件信息
 #[command]
-pub async fn upload_to_s3(params: String, app_handle: tauri::AppHandle) -> Result<u64, String> {
+pub async fn upload_to_s3(params: String, app_handle: tauri::AppHandle) -> Result<(), String> {
     s3_upload::upload_to_s3(params, app_handle).await
 }

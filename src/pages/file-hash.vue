@@ -28,7 +28,7 @@ async function selectFile() {
     <ElForm label-position="top" label-suffix="：">
       <ElFormItem label="选择文件">
         <ElInput
-          v-model="filePath"
+          v-model.trim="filePath"
           placeholder="点击选择文件..."
           :class="$style.input"
           @click="selectFile"
