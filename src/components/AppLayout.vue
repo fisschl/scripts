@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import { ElScrollbar } from 'element-plus'
 import { CloudUpload, Copy, GitBranch, Hash } from 'lucide-vue-next'
-import { computed, markRaw } from 'vue'
-import { useRoute } from 'vue-router'
 
 const route = useRoute()
 

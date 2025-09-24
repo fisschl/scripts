@@ -10,7 +10,6 @@ declare module 'vue' {
   export interface GlobalComponents {
     AppLayout: typeof import('./src/components/AppLayout.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
-    ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
     ElDivider: typeof import('element-plus/es')['ElDivider']
     ElForm: typeof import('element-plus/es')['ElForm']
     ElFormItem: typeof import('element-plus/es')['ElFormItem']
@@ -19,6 +18,7 @@ declare module 'vue' {
     ElInputTag: typeof import('element-plus/es')['ElInputTag']
     ElMenu: typeof import('element-plus/es')['ElMenu']
     ElMenuItem: typeof import('element-plus/es')['ElMenuItem']
+    ElScrollbar: typeof import('element-plus/es')['ElScrollbar']
     LogViewer: typeof import('./src/components/LogViewer.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

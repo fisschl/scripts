@@ -5,16 +5,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
-import { ElMessage } from 'element-plus'
 import { merge } from 'lodash-es'
 import { Copy, Folder } from 'lucide-vue-next'
-import {
-  onBeforeUnmount,
-  onMounted,
-  reactive,
-  ref,
-  useTemplateRef,
-} from 'vue'
 import { array, object, string } from 'zod/mini'
 import LogViewer from '@/components/LogViewer.vue'
 

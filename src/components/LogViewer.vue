@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, useTemplateRef, watch } from 'vue'
-
 interface Props {
   logs: string[]
 }

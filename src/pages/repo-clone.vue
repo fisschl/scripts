@@ -2,9 +2,7 @@
 import type { FormRules } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { ElMessage } from 'element-plus'
 import { GitBranch } from 'lucide-vue-next'
-import { onBeforeUnmount, onMounted, reactive, ref, useTemplateRef } from 'vue'
 import LogViewer from '@/components/LogViewer.vue'
 
 // 表单数据

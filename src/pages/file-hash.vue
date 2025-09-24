@@ -2,7 +2,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { File, Key } from 'lucide-vue-next'
-import { ref } from 'vue'
 
 const filePath = ref('')
 const hashResult = ref('')
