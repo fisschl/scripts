@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
+import type { infer as Infer } from 'zod/mini'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -8,24 +9,25 @@ import { ElMessage } from 'element-plus'
 import { merge } from 'lodash-es'
 import { CloudUpload, Database, Folder, Globe, Key, MapPin } from 'lucide-vue-next'
 import { onBeforeUnmount, onMounted, reactive, ref, useTemplateRef } from 'vue'
+import { array, object, string } from 'zod/mini'
 import LogViewer from '@/components/LogViewer.vue'
 
-interface S3Config {
-  access_key_id: string
-  secret_access_key: string
-  region: string
-  bucket: string
-  endpoint_url: string
-}
+const S3ConfigZod = object({
+  access_key_id: string(),
+  secret_access_key: string(),
+  region: string(),
+  bucket: string(),
+  endpoint_url: string(),
+})
 
-interface FormData {
-  s3_config: S3Config
-  local_dir: string
-  remote_dir: string
-}
+const FormDataZod = object({
+  s3_config: S3ConfigZod,
+  local_dir: string(),
+  remote_dir: string(),
+})
 
 // 表单数据
-const form = reactive<FormData>({
+const form = reactive<Infer<typeof FormDataZod>>({
   s3_config: {
     access_key_id: '',
     secret_access_key: '',
@@ -72,10 +74,10 @@ const FORM_STORAGE_KEY = 's3-upload-form'
 const store = Store.load('form-data.json')
 
 store.then(async (store) => {
-  const savedData = await store.get<FormData>(FORM_STORAGE_KEY)
-  if (!savedData)
+  const result = FormDataZod.safeParse(await store.get(FORM_STORAGE_KEY))
+  if (!result.success)
     return
-  merge(form, savedData)
+  merge(form, result.data)
 })
 
 async function selectLocalDir() {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
+import type { infer as Infer } from 'zod/mini'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -14,16 +15,17 @@ import {
   ref,
   useTemplateRef,
 } from 'vue'
+import { array, object, string } from 'zod/mini'
 import LogViewer from '@/components/LogViewer.vue'
 
-interface FormData {
-  sourcePath: string
-  targetPath: string
-  extensions: string[]
-}
+const FormDataZod = object({
+  sourcePath: string(),
+  targetPath: string(),
+  extensions: array(string()),
+})
 
 // 表单数据
-const form = reactive<FormData>({
+const form = reactive<Infer<typeof FormDataZod>>({
   sourcePath: '',
   targetPath: '',
   extensions: ['mp4', 'webm', 'm4v'], // 只保留浏览器原生支持的格式
@@ -60,10 +62,10 @@ const store = Store.load('form-data.json')
 
 // 初始化时加载保存的表单数据
 await store.then(async (store) => {
-  const savedData = await store.get<FormData>(FORM_STORAGE_KEY)
-  if (!savedData)
+  const result = FormDataZod.safeParse(await store.get(FORM_STORAGE_KEY))
+  if (!result.success)
     return
-  merge(form, savedData)
+  merge(form, result.data)
 })
 
 async function selectSourcePath() {
