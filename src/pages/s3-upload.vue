@@ -157,7 +157,7 @@ onBeforeUnmount(() => {
           :disabled="loading"
         >
           <template #prefix>
-            <Key :size="18" />
+            <Key :size="16" />
           </template>
         </ElInput>
       </ElFormItem>
@@ -172,7 +172,7 @@ onBeforeUnmount(() => {
           :disabled="loading"
         >
           <template #prefix>
-            <Key :size="18" />
+            <Key :size="16" />
           </template>
         </ElInput>
       </ElFormItem>
@@ -185,7 +185,7 @@ onBeforeUnmount(() => {
           :disabled="loading"
         >
           <template #prefix>
-            <MapPin :size="18" />
+            <MapPin :size="16" />
           </template>
         </ElInput>
       </ElFormItem>
@@ -198,7 +198,7 @@ onBeforeUnmount(() => {
           :disabled="loading"
         >
           <template #prefix>
-            <Globe :size="18" />
+            <Globe :size="16" />
           </template>
         </ElInput>
       </ElFormItem>
@@ -211,7 +211,7 @@ onBeforeUnmount(() => {
           :disabled="loading"
         >
           <template #prefix>
-            <Database :size="18" />
+            <Database :size="16" />
           </template>
         </ElInput>
       </ElFormItem>
@@ -229,7 +229,7 @@ onBeforeUnmount(() => {
           @click="selectLocalDir"
         >
           <template #prefix>
-            <Folder :size="18" />
+            <Folder :size="16" />
           </template>
         </ElInput>
       </ElFormItem>
@@ -242,7 +242,7 @@ onBeforeUnmount(() => {
           :disabled="loading"
         >
           <template #prefix>
-            <Folder :size="18" />
+            <Folder :size="16" />
           </template>
         </ElInput>
       </ElFormItem>

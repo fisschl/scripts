@@ -34,7 +34,7 @@ async function selectFile() {
           @click="selectFile"
         >
           <template #prefix>
-            <File :size="18" />
+            <File :size="16" />
           </template>
         </ElInput>
       </ElFormItem>
@@ -44,7 +44,7 @@ async function selectFile() {
           :class="$style.input"
         >
           <template #prefix>
-            <Key :size="18" />
+            <Key :size="16" />
           </template>
         </ElInput>
       </ElFormItem>
