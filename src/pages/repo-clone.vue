@@ -2,7 +2,7 @@
 import type { FormRules } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { GitBranch } from 'lucide-vue-next'
+import { ExternalLink, GitBranch, Link } from 'lucide-vue-next'
 import LogViewer from '@/components/LogViewer.vue'
 
 // 表单数据
@@ -88,7 +88,11 @@ onBeforeUnmount(() => {
           placeholder="https://github.com/username/repo.git"
           :class="$style.input"
           :disabled="loading"
-        />
+        >
+          <template #prefix>
+            <Link :size="16" />
+          </template>
+        </ElInput>
       </ElFormItem>
 
       <ElFormItem label="目标仓库 URL" prop="targetUrl">
@@ -97,7 +101,11 @@ onBeforeUnmount(() => {
           placeholder="https://gitlab.com/username/repo.git"
           :class="$style.input"
           :disabled="loading"
-        />
+        >
+          <template #prefix>
+            <ExternalLink :size="16" />
+          </template>
+        </ElInput>
       </ElFormItem>
 
       <div class="mt-4">

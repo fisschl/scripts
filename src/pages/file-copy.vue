@@ -151,9 +151,7 @@ onBeforeUnmount(() => {
           @click="selectSourcePath"
         >
           <template #prefix>
-            <ElIcon>
-              <Folder />
-            </ElIcon>
+            <Folder :size="18" />
           </template>
         </ElInput>
       </ElFormItem>
@@ -167,9 +165,7 @@ onBeforeUnmount(() => {
           @click="selectTargetPath"
         >
           <template #prefix>
-            <ElIcon>
-              <Folder />
-            </ElIcon>
+            <Folder :size="18" />
           </template>
         </ElInput>
       </ElFormItem>
