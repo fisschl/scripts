@@ -189,7 +189,10 @@ onBeforeUnmount(() => {
         </ElButton>
       </div>
     </ElForm>
-    <LogViewer :logs="progressMessages" class="my-4" />
+    <template v-if="progressMessages.length > 0">
+      <ElDivider />
+      <LogViewer :logs="progressMessages" class="mb-4" />
+    </template>
   </div>
 </template>
 

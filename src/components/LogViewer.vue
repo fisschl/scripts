@@ -46,7 +46,7 @@ onMounted(() => {
 <style scoped>
 /* 日志容器高度 */
 .logs-container {
-  max-height: 50vh;
+  max-height: 80vh;
   /* 隐藏滚动条 */
   scrollbar-width: none; /* Firefox */
 }
