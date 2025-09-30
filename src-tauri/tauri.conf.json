@@ -12,10 +12,14 @@
   "app": {
     "windows": [
       {
-        "title": "Scripts App",
-        "resizable": true,
+        "title": "工具包",
         "width": 1280,
-        "height": 720
+        "height": 720,
+        "transparent": true,
+        "windowEffects": {
+          "effects": ["mica", "hudWindow"],
+          "state": "active"
+        }
       }
     ],
     "security": {

@@ -25,10 +25,14 @@ watchEffect(() => {
 
 html {
   font-family: var(--font-sans);
-  color-scheme: light dark;
 
   body {
     font-family: inherit;
   }
+}
+
+html,
+body {
+  background-color: transparent;
 }
 </style>

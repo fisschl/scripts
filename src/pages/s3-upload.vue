@@ -145,10 +145,6 @@ onBeforeUnmount(() => {
       label-suffix="："
       @submit.prevent="startUpload"
     >
-      <ElDivider>
-        S3 配置
-      </ElDivider>
-
       <ElFormItem label="Access Key ID" prop="s3_config.access_key_id">
         <ElInput
           v-model.trim="form.s3_config.access_key_id"
@@ -216,9 +212,7 @@ onBeforeUnmount(() => {
         </ElInput>
       </ElFormItem>
 
-      <ElDivider>
-        上传设置
-      </ElDivider>
+      <ElDivider />
 
       <ElFormItem label="本地目录" prop="local_dir">
         <ElInput
