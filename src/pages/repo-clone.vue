@@ -17,12 +17,12 @@ const formRef = useTemplateRef('form-ref')
 // 校验规则
 const rules = reactive<FormRules>({
   sourceUrl: [
-    { required: true, message: '请输入源仓库URL', trigger: 'blur' },
-    { type: 'url', message: '请输入有效的URL地址', trigger: 'blur' },
+    { required: true, message: '请输入源仓库URL' },
+    { type: 'url', message: '请输入有效的URL地址' },
   ],
   targetUrl: [
-    { required: true, message: '请输入目标仓库URL', trigger: 'blur' },
-    { type: 'url', message: '请输入有效的URL地址', trigger: 'blur' },
+    { required: true, message: '请输入目标仓库URL' },
+    { type: 'url', message: '请输入有效的URL地址' },
   ],
 })
 

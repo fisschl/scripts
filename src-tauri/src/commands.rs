@@ -2,14 +2,8 @@
 //!
 //! 专门编写暴露给前端的函数，通过 Tauri 命令与前端交互
 
-// 文件复制相关命令
-mod file_copy;
-// 仓库镜像同步相关命令
 mod repo_mirror;
-// S3 上传相关命令
 mod s3_upload;
-
-// 工具函数导入
 use crate::utils::hash;
 use std::path::PathBuf;
 use tauri::command;
@@ -47,26 +41,6 @@ pub fn repo_mirror(app_handle: tauri::AppHandle, from: String, to: String) -> Re
     repo_mirror::repo_mirror(app_handle, from, to)
 }
 
-/// 根据扩展名列表复制文件
-///
-/// # 参数
-/// - `app_handle`: Tauri 应用句柄，用于发送进度事件
-/// - `from`: 源目录路径
-/// - `to`: 目标目录路径  
-/// - `extensions`: 要复制的文件扩展名数组，例如 vec!["mp4".to_string(), "jpg".to_string()]
-///
-/// # 返回值
-/// - 成功时返回复制的文件数量
-/// - 失败时返回错误信息字符串
-#[command]
-pub fn copy_files_with_options(
-    app_handle: tauri::AppHandle,
-    from: String,
-    to: String,
-    extensions: Vec<String>,
-) -> Result<u64, String> {
-    file_copy::copy_files_with_options(app_handle, from, to, extensions)
-}
 
 /// 将本地目录覆盖式上传到 S3 远程目录
 ///

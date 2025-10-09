@@ -19,7 +19,7 @@ declare module 'vue-router/auto-routes' {
    */
   export interface RouteNamedMap {
     '/': RouteRecordInfo<'/', '/', Record<never, never>, Record<never, never>>,
-    '/file-copy': RouteRecordInfo<'/file-copy', '/file-copy', Record<never, never>, Record<never, never>>,
+    '/file-copy/': RouteRecordInfo<'/file-copy/', '/file-copy', Record<never, never>, Record<never, never>>,
     '/file-hash': RouteRecordInfo<'/file-hash', '/file-hash', Record<never, never>, Record<never, never>>,
     '/repo-clone': RouteRecordInfo<'/repo-clone', '/repo-clone', Record<never, never>, Record<never, never>>,
     '/s3-upload': RouteRecordInfo<'/s3-upload', '/s3-upload', Record<never, never>, Record<never, never>>,
@@ -40,8 +40,8 @@ declare module 'vue-router/auto-routes' {
       routes: '/'
       views: never
     }
-    'src/pages/file-copy.vue': {
-      routes: '/file-copy'
+    'src/pages/file-copy/index.vue': {
+      routes: '/file-copy/'
       views: never
     }
     'src/pages/file-hash.vue': {

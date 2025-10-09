@@ -43,25 +43,25 @@ const formRef = useTemplateRef('form-ref')
 // 校验规则
 const rules = reactive<FormRules>({
   's3_config.access_key_id': [
-    { required: true, message: '请输入 Access Key ID', trigger: 'blur' },
+    { required: true, message: '请输入 Access Key ID' },
   ],
   's3_config.secret_access_key': [
-    { required: true, message: '请输入 Secret Access Key', trigger: 'blur' },
+    { required: true, message: '请输入 Secret Access Key' },
   ],
   's3_config.region': [
-    { required: true, message: '请输入区域', trigger: 'blur' },
+    { required: true, message: '请输入区域' },
   ],
   's3_config.bucket': [
-    { required: true, message: '请输入存储桶名称', trigger: 'blur' },
+    { required: true, message: '请输入存储桶名称' },
   ],
   's3_config.endpoint_url': [
-    { required: true, message: '请输入终端节点 URL', trigger: 'blur' },
+    { required: true, message: '请输入终端节点 URL' },
   ],
   'local_dir': [
-    { required: true, message: '请选择本地目录', trigger: 'blur' },
+    { required: true, message: '请选择本地目录' },
   ],
   'remote_dir': [
-    { required: true, message: '请输入远程目录路径', trigger: 'blur' },
+    { required: true, message: '请输入远程目录路径' },
   ],
 })
 
@@ -76,6 +76,9 @@ store.then(async (store) => {
   if (!result.success)
     return
   merge(form, result.data)
+  // 数据回显后移除表单校验状态
+  await nextTick()
+  formRef.value?.clearValidate()
 })
 
 async function selectLocalDir() {
