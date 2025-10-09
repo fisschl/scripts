@@ -7,14 +7,6 @@
     "core:default",
     "opener:default",
     "dialog:default",
-    "store:default",
-    "fs:default",
-    "fs:allow-read",
-    "fs:allow-write",
-    "fs:allow-stat",
-    "fs:allow-copy-file",
-    "fs:allow-create",
-    "fs:allow-read-dir",
-    "fs:allow-exists"
+    "store:default"
   ]
 }

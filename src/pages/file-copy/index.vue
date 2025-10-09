@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
 import type { infer as Infer } from 'zod/mini'
-import type { FileItem } from './components/types'
+import type { FileInfo, FileItem } from './components/types'
 import { invoke } from '@tauri-apps/api/core'
-import { join } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
-import { copyFile, mkdir, readDir, stat } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
 import { merge, pick, pull } from 'lodash-es'
 import { Copy, Folder } from 'lucide-vue-next'
@@ -102,33 +100,29 @@ async function startCopy() {
   loading.value = true
 
   try {
-    const { sourcePath, targetPath, extensions } = form
+    const { sourcePath, extensions } = form
 
-    // 1. 验证源目录
-    const fromStat = await stat(sourcePath)
-    if (!fromStat.isDirectory) {
-      throw new Error('源路径不是目录')
+    // 1. 递归列举源目录中的所有文件
+    const allFiles = await listFilesRecursive(sourcePath)
+    if (allFiles.length === 0) {
+      throw new Error('源目录为空或无法访问')
     }
 
-    // 2. 创建目标目录
-    await mkdir(targetPath, { recursive: true })
-
     files.length = 0
-    // 3. 扫描所有待处理文件
+    // 2. 筛选匹配扩展名的文件
     const allowedExtensions = extensions.map(ext => ext.toLowerCase())
-    const tempFiles: string[] = []
-    await processDirectory(sourcePath, allowedExtensions, tempFiles)
+    const filteredFiles = allFiles.filter(file =>
+      allowedExtensions.some(ext => file.toLowerCase().endsWith(`.${ext}`)),
+    )
 
-    tempFiles.forEach((path) => {
-      files.push({ path, status: 'pending' })
+    filteredFiles.forEach((filePath) => {
+      files.push({ path: filePath, status: 'pending' })
     })
 
     for (const item of files) {
       item.status = 'processing'
       await copySingleFile(item.path, form.targetPath)
       pull(files, item)
-      // 等待 1 秒，方便观察
-      await new Promise(resolve => setTimeout(resolve, 1000))
     }
   }
   catch (error: unknown) {
@@ -141,29 +135,28 @@ async function startCopy() {
 }
 
 /**
- * 递归处理目录，收集匹配的文件
+ * 递归列举目录中的所有文件
  */
-async function processDirectory(
-  currentDir: string,
-  allowedExtensions: string[],
-  fileList: string[],
-): Promise<void> {
-  const entries = await readDir(currentDir)
+async function listFilesRecursive(dirPath: string): Promise<string[]> {
+  const result: string[] = []
 
-  for (const entry of entries) {
-    const fullPath = await join(currentDir, entry.name)
+  const files = await invoke<FileInfo[]>('list_directory', {
+    path: dirPath,
+  })
 
-    if (entry.isFile) {
-      const extension = entry.name.split('.').pop()?.toLowerCase() || ''
-      if (allowedExtensions.includes(extension)) {
-        fileList.push(fullPath)
-      }
+  for (const file of files) {
+    if (file.is_dir) {
+      // 递归处理子目录
+      const subFiles = await listFilesRecursive(file.path)
+      result.push(...subFiles)
     }
-    else if (entry.isDirectory && !entry.name.startsWith('.')) {
-      // 递归处理子目录（跳过隐藏目录）
-      await processDirectory(fullPath, allowedExtensions, fileList)
+    else {
+      // 添加文件路径
+      result.push(file.path)
     }
   }
+
+  return result
 }
 
 /**
@@ -187,16 +180,14 @@ async function copySingleFile(
 
   // 3. 构建目标文件路径（哈希值 + 原始扩展名）
   const targetFileName = extension ? `${hash}.${extension}` : hash
-  const targetPath = await join(targetDir, targetFileName)
+  const targetPath = `${targetDir}/${targetFileName}`
 
-  // 4. 检查目标文件是否已存在，如果存在则跳过
-  const targetStat = await stat(targetPath).catch(() => null)
-  if (targetStat) {
-    return // 文件已存在，跳过复制
-  }
-
-  // 5. 执行文件复制
-  await copyFile(sourceFile, targetPath)
+  // 4. 执行文件复制（如果不允许覆盖，则跳过已存在的文件）
+  await invoke('copy_file', {
+    from: sourceFile,
+    to: targetPath,
+    overwrite: false,
+  })
 }
 </script>
 

@@ -2,6 +2,7 @@
 //!
 //! 专门编写暴露给前端的函数，通过 Tauri 命令与前端交互
 
+pub mod fs;
 mod repo_mirror;
 mod s3_upload;
 use crate::utils::hash;
@@ -59,3 +60,4 @@ pub fn repo_mirror(app_handle: tauri::AppHandle, from: String, to: String) -> Re
 pub async fn upload_to_s3(params: String, app_handle: tauri::AppHandle) -> Result<(), String> {
     s3_upload::upload_to_s3(params, app_handle).await
 }
+

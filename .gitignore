@@ -7,10 +7,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Build outputs
 /dist
 /dist-ssr
 *.local
+/src-tauri/target
+/src-tauri/gen
 
 # Editor directories and files
 .idea
@@ -21,5 +26,5 @@ node_modules
 *.sln
 *.sw?
 
-/src-tauri/target
-/src-tauri/gen
+# Claude
+.claude
