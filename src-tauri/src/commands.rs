@@ -42,7 +42,6 @@ pub fn repo_mirror(app_handle: tauri::AppHandle, from: String, to: String) -> Re
     repo_mirror::repo_mirror(app_handle, from, to)
 }
 
-
 /// 将本地目录覆盖式上传到 S3 远程目录
 ///
 /// # 参数
@@ -60,4 +59,3 @@ pub fn repo_mirror(app_handle: tauri::AppHandle, from: String, to: String) -> Re
 pub async fn upload_to_s3(params: String, app_handle: tauri::AppHandle) -> Result<(), String> {
     s3_upload::upload_to_s3(params, app_handle).await
 }
-

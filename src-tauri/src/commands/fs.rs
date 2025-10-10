@@ -36,7 +36,6 @@ pub struct CopyFileArgs {
     overwrite: bool,
 }
 
-
 /// 列举目录下所有文件和子目录
 ///
 /// # 参数
@@ -59,13 +58,13 @@ pub fn list_directory(args: ListDirectoryArgs) -> Result<Vec<FileInfo>, String> 
 
     let mut files = Vec::new();
 
-    let entries = fs::read_dir(path)
-        .map_err(|e| format!("读取目录失败: {}", e))?;
+    let entries = fs::read_dir(path).map_err(|e| format!("读取目录失败: {}", e))?;
 
     for entry in entries {
         let entry = entry.map_err(|e| format!("遍历目录条目失败: {}", e))?;
         let entry_path = entry.path();
-        let metadata = entry.metadata()
+        let metadata = entry
+            .metadata()
             .map_err(|e| format!("获取文件元数据失败: {}", e))?;
 
         let file_info = FileInfo {
@@ -98,24 +97,20 @@ pub fn copy_file(args: CopyFileArgs) -> Result<(), String> {
         return Err("源文件不存在".to_string());
     }
 
-    // 检查目标文件是否已存在
+    // 检查目标文件是否已存在，如果已存在且不允许覆盖则直接返回成功
     if to.exists() && !args.overwrite {
-        return Err("目标文件已存在且不允许覆盖".to_string());
+        return Ok(());
     }
 
     // 确保目标目录存在
     if let Some(parent) = to.parent() {
         if !parent.exists() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("创建目标目录失败: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("创建目标目录失败: {}", e))?;
         }
     }
 
     // 复制文件
-    fs::copy(from, to)
-        .map_err(|e| format!("复制文件失败: {}", e))?;
+    fs::copy(from, to).map_err(|e| format!("复制文件失败: {}", e))?;
 
     Ok(())
 }
-
-

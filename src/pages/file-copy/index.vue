@@ -5,19 +5,18 @@ import type { FileInfo, FileItem } from './components/types'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
-import { merge, pick, pull } from 'lodash-es'
+import { merge, pull } from 'lodash-es'
 import { Copy, Folder } from 'lucide-vue-next'
 import { array, object, string } from 'zod/mini'
 import FileListItem from './components/FileListItem.vue'
 
 const SavedFormDataZod = object({
+  sourcePath: string(),
+  targetPath: string(),
   extensions: array(string()),
 })
 
-interface FormData extends Infer<typeof SavedFormDataZod> {
-  sourcePath: string
-  targetPath: string
-}
+interface FormData extends Infer<typeof SavedFormDataZod> {}
 
 // 表单数据
 const form = reactive<FormData>({
@@ -92,7 +91,7 @@ async function startCopy() {
 
   // 保存表单数据
   await store.then(async (store) => {
-    await store.set(FORM_STORAGE_KEY, pick(form, ['extensions']))
+    await store.set(FORM_STORAGE_KEY, form)
     await store.save()
   })
 
@@ -141,7 +140,9 @@ async function listFilesRecursive(dirPath: string): Promise<string[]> {
   const result: string[] = []
 
   const files = await invoke<FileInfo[]>('list_directory', {
-    path: dirPath,
+    args: {
+      path: dirPath,
+    },
   })
 
   for (const file of files) {
@@ -184,9 +185,11 @@ async function copySingleFile(
 
   // 4. 执行文件复制（如果不允许覆盖，则跳过已存在的文件）
   await invoke('copy_file', {
-    from: sourceFile,
-    to: targetPath,
-    overwrite: false,
+    args: {
+      from: sourceFile,
+      to: targetPath,
+      overwrite: false,
+    },
   })
 }
 </script>
@@ -232,6 +235,7 @@ async function copySingleFile(
         <ElInputTag
           v-model="form.extensions"
           placeholder="请输入扩展名"
+          @keydown.enter.prevent
         />
       </ElFormItem>
 
