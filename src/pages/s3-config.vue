@@ -3,7 +3,7 @@ import type { FormRules } from 'element-plus'
 import type { infer as Infer } from 'zod/mini'
 import { Store } from '@tauri-apps/plugin-store'
 import { cloneDeep, remove } from 'lodash-es'
-import { Plus } from 'lucide-vue-next'
+import { Globe, Key, MapPin, Plus } from 'lucide-vue-next'
 import { array, object, string } from 'zod/mini'
 
 // S3 实例 Zod 模式定义
@@ -169,31 +169,49 @@ async function deleteInstance(instance: S3Instance) {
         <ElFormItem label="Endpoint URL" prop="endpoint_url">
           <ElInput
             v-model.trim="form.endpoint_url"
-            placeholder="https://s3.amazonaws.com"
+            placeholder="例如: https://tos-s3-cn-shanghai.volces.com"
             style="width: 22rem;"
-          />
+          >
+            <template #prefix>
+              <Globe :size="16" />
+            </template>
+          </ElInput>
         </ElFormItem>
 
         <ElFormItem label="Access Key ID" prop="access_key_id">
           <ElInput
             v-model.trim="form.access_key_id"
-            placeholder="AKIAIOSFODNN7EXAMPLE"
-          />
+            placeholder="请输入 AWS Access Key ID"
+          >
+            <template #prefix>
+              <Key :size="16" />
+            </template>
+          </ElInput>
         </ElFormItem>
 
         <ElFormItem label="Secret Access Key" prop="secret_access_key">
           <ElInput
             v-model.trim="form.secret_access_key"
-            placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-          />
+            placeholder="请输入 AWS Secret Access Key"
+            type="password"
+            show-password
+          >
+            <template #prefix>
+              <Key :size="16" />
+            </template>
+          </ElInput>
         </ElFormItem>
 
         <ElFormItem label="Region" prop="region">
           <ElInput
             v-model.trim="form.region"
-            placeholder="us-east-1"
+            placeholder="例如: tos-s3-cn-shanghai"
             style="width: 16rem;"
-          />
+          >
+            <template #prefix>
+              <MapPin :size="16" />
+            </template>
+          </ElInput>
         </ElFormItem>
 
         <div class="flex justify-end">

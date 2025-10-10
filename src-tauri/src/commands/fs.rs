@@ -4,29 +4,43 @@
 
 use serde::Serialize;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tauri::command;
+use crate::utils::hash;
 
-/// 文件信息
+/// 文件系统条目信息
+///
+/// 表示文件或目录的基本元数据信息
 #[derive(Debug, Serialize)]
 pub struct FileInfo {
-    /// 文件路径
-    path: String,
+    /// 条目的完整路径
+    pub path: String,
     /// 是否为目录
-    is_dir: bool,
-    /// 文件大小（字节）
-    size: u64,
+    pub is_dir: bool,
+    /// 文件大小（字节），目录通常为 0
+    pub size: u64,
 }
 
 
-/// 列举目录下所有文件和子目录
+/// 列举目录内容
+///
+/// 扫描指定目录并返回其中所有文件和子目录的信息。
+/// 此操作是递归的，只列出直接子项，不会深入子目录。
 ///
 /// # 参数
-/// - `path`: 目录路径
+///
+/// * `path` - 要扫描的目录路径
 ///
 /// # 返回值
-/// - 成功时返回文件信息列表
-/// - 失败时返回错误信息字符串
+///
+/// * `Ok(Vec<FileInfo>)` - 成功时返回目录条目信息列表
+/// * `Err(String)` - 失败时返回错误描述
+///
+/// # 错误
+///
+/// * 当目录不存在时返回错误
+/// * 当路径不是目录时返回错误
+/// * 当没有读取权限时返回错误
 #[command]
 pub fn list_directory(path: String) -> Result<Vec<FileInfo>, String> {
     let path = Path::new(&path);
@@ -64,14 +78,26 @@ pub fn list_directory(path: String) -> Result<Vec<FileInfo>, String> {
 
 /// 复制文件
 ///
+/// 将文件从源位置复制到目标位置。可以选择是否覆盖已存在的文件。
+/// 如果目标目录不存在，会自动创建。
+///
 /// # 参数
-/// - `from`: 源文件路径
-/// - `to`: 目标文件路径
-/// - `overwrite`: 目标存在时是否覆盖，可选参数，默认为 false
+///
+/// * `from` - 源文件的完整路径
+/// * `to` - 目标文件的完整路径
+/// * `overwrite` - 是否覆盖已存在的文件，默认为 false
 ///
 /// # 返回值
-/// - 成功时返回 Ok(())
-/// - 失败时返回错误信息字符串
+///
+/// * `Ok(())` - 文件复制成功
+/// * `Err(String)` - 复制失败时的错误描述
+///
+/// # 行为
+///
+/// * 当源文件不存在时返回错误
+/// * 当目标文件已存在且 `overwrite` 为 false 时，跳过复制并返回成功
+/// * 当目标目录不存在时，自动创建目录结构
+/// * 当目标文件已存在且 `overwrite` 为 true 时，覆盖目标文件
 #[command]
 pub fn copy_file(from: String, to: String, overwrite: Option<bool>) -> Result<(), String> {
     let from = Path::new(&from);
@@ -101,14 +127,26 @@ pub fn copy_file(from: String, to: String, overwrite: Option<bool>) -> Result<()
     Ok(())
 }
 
-/// 递归删除文件或目录
+/// 删除文件或目录
+///
+/// 删除指定路径的文件或目录。如果是目录，将递归删除其中的所有内容。
+/// 如果路径不存在，视为操作成功。
 ///
 /// # 参数
-/// - `path`: 要删除的路径
+///
+/// * `path` - 要删除的文件或目录路径
 ///
 /// # 返回值
-/// - 成功时返回 Ok(())
-/// - 失败时返回错误信息字符串
+///
+/// * `Ok(())` - 删除操作成功
+/// * `Err(String)` - 删除失败时的错误描述
+///
+/// # 行为
+///
+/// * 当路径不存在时，返回成功（幂等操作）
+/// * 当路径是文件时，删除单个文件
+/// * 当路径是目录时，递归删除目录及其所有内容
+/// * 当没有删除权限时返回错误
 #[command]
 pub fn remove_path(path: String) -> Result<(), String> {
     let path = Path::new(&path);
@@ -126,4 +164,31 @@ pub fn remove_path(path: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// 计算文件哈希值
+///
+/// 使用 Blake3 算法计算文件的哈希值，并以 base32-crockford 格式返回。
+/// 适用于文件完整性校验和去重等场景。
+///
+/// # 参数
+///
+/// * `file_path` - 要计算哈希值的文件路径
+///
+/// # 返回值
+///
+/// * `Ok(String)` - 成功时返回 base32-crockford 编码的哈希值
+/// * `Err(String)` - 失败时返回错误描述
+///
+/// # 行为
+///
+/// * 当文件不存在时返回错误
+/// * 当没有读取权限时返回错误
+/// * 对于大文件，计算时间可能与文件大小成正比
+/// * 哈希值不包含路径信息，仅基于文件内容
+#[command]
+pub fn file_hash(file_path: String) -> Result<String, String> {
+    let path = PathBuf::from(file_path);
+
+    hash::calculate_file_hash(&path).map_err(|e| format!("计算文件哈希值失败: {}", e))
 }

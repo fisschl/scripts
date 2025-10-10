@@ -1,37 +1,71 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
-import type { infer as Infer } from 'zod/mini'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
 import { merge } from 'lodash-es'
-import { CloudUpload, Database, Folder, Globe, Key, MapPin } from 'lucide-vue-next'
-import { object, string } from 'zod/mini'
+import { CloudUpload, Database, Folder, HardDrive, MapPin } from 'lucide-vue-next'
 import LogViewer from '@/components/LogViewer.vue'
 
-const S3ConfigZod = object({
-  access_key_id: string(),
-  secret_access_key: string(),
-  region: string(),
-  bucket: string(),
-  endpoint_url: string(),
-})
+// S3 实例类型
+interface S3Instance {
+  endpoint_url: string
+  access_key_id: string
+  secret_access_key: string
+  region: string
+}
 
-const FormDataZod = object({
-  s3_config: S3ConfigZod,
-  local_dir: string(),
-  remote_dir: string(),
-})
+// S3 配置类型
+interface S3Config {
+  bucket: string
+  endpoint_url: string
+}
+
+// S3 对象类型
+interface S3Object {
+  key: string
+  size?: number
+  last_modified?: string
+  etag?: string
+}
+
+// 表单数据类型
+interface FormData {
+  s3_instance: S3Instance
+  s3_config: S3Config
+  local_dir: string
+  remote_dir: string
+}
+
+// 本地文件信息结构
+interface LocalFile {
+  path: string
+  size: number
+  lastModified: Date
+}
+
+// 同步操作类型
+interface SyncOperation {
+  type: 'upload' | 'delete'
+  localPath?: string
+  s3Key: string
+}
+
+// S3 实例列表
+const s3Instances = ref<S3Instance[]>([])
 
 // 表单数据
-const form = reactive<Infer<typeof FormDataZod>>({
-  s3_config: {
+const form = reactive<FormData>({
+  s3_instance: {
+    endpoint_url: '',
     access_key_id: '',
     secret_access_key: '',
-    region: 'tos-s3-cn-shanghai',
+    region: '',
+  },
+  s3_config: {
     bucket: '',
-    endpoint_url: 'https://tos-s3-cn-shanghai.volces.com',
+    endpoint_url: '',
   },
   local_dir: '',
   remote_dir: '',
@@ -42,14 +76,8 @@ const formRef = useTemplateRef('form-ref')
 
 // 校验规则
 const rules = reactive<FormRules>({
-  's3_config.access_key_id': [
-    { required: true, message: '请输入 Access Key ID' },
-  ],
-  's3_config.secret_access_key': [
-    { required: true, message: '请输入 Secret Access Key' },
-  ],
-  's3_config.region': [
-    { required: true, message: '请输入区域' },
+  's3_instance.endpoint_url': [
+    { required: true, message: '请选择 S3 实例' },
   ],
   's3_config.bucket': [
     { required: true, message: '请输入存储桶名称' },
@@ -68,18 +96,186 @@ const rules = reactive<FormRules>({
 const loading = ref(false)
 const progressMessages = ref<string[]>([])
 
+const S3_INSTANCES_KEY = 's3-instances'
 const FORM_STORAGE_KEY = 's3-upload-form'
+const s3Store = Store.load('s3-config.json')
 const store = Store.load('form-data.json')
 
+// 加载 S3 实例列表
+async function loadS3Instances() {
+  const data = await s3Store.then(store => store.get(S3_INSTANCES_KEY))
+  if (Array.isArray(data)) {
+    s3Instances.value = data as S3Instance[]
+  }
+  else {
+    s3Instances.value = []
+  }
+}
+
 store.then(async (store) => {
-  const result = FormDataZod.safeParse(await store.get(FORM_STORAGE_KEY))
-  if (!result.success)
-    return
-  merge(form, result.data)
+  const data = await store.get(FORM_STORAGE_KEY)
+  if (data && typeof data === 'object') {
+    merge(form, data)
+  }
   // 数据回显后移除表单校验状态
   await nextTick()
   formRef.value?.clearValidate()
 })
+
+// 加载 S3 实例
+loadS3Instances()
+
+// 监听 S3 实例选择变化
+watch(() => form.s3_instance.endpoint_url, (newEndpoint) => {
+  if (newEndpoint) {
+    const instance = s3Instances.value.find(item => item.endpoint_url === newEndpoint)
+    if (instance) {
+      form.s3_instance = { ...instance }
+      form.s3_config.endpoint_url = instance.endpoint_url
+    }
+  }
+})
+
+// 获取本地文件列表
+async function getLocalFiles(dir: string): Promise<Map<string, LocalFile>> {
+  const localFiles = new Map<string, LocalFile>()
+
+  try {
+    const result = await invoke<string[]>('list_directory', { path: dir })
+
+    for (const filePath of result) {
+      try {
+        const stats = await invoke<any>('get_file_stats', { path: filePath })
+        if (stats.isFile) {
+          const relativePath = filePath.replace(dir + (dir.endsWith('/') || dir.endsWith('\\') ? '' : '/'), '').replace(/\\/g, '/')
+          localFiles.set(relativePath, {
+            path: filePath,
+            size: stats.size,
+            lastModified: new Date(stats.lastModified),
+          })
+        }
+      }
+      catch (error) {
+        console.warn(`获取文件信息失败: ${filePath}`, error)
+      }
+    }
+  }
+  catch (error) {
+    throw new Error(`扫描本地目录失败: ${error}`)
+  }
+
+  return localFiles
+}
+
+// 获取远程文件列表
+async function getRemoteFiles(endpointUrl: string, bucket: string, prefix: string): Promise<Map<string, S3Object>> {
+  const remoteFiles = new Map<string, S3Object>()
+
+  try {
+    const objects = await invoke<S3Object[]>('list_objects', {
+      endpoint_url: endpointUrl,
+      bucket,
+      prefix,
+    })
+
+    for (const obj of objects) {
+      const relativeKey = obj.key.replace(prefix, '')
+      if (relativeKey) {
+        remoteFiles.set(relativeKey, obj)
+      }
+    }
+  }
+  catch (error) {
+    throw new Error(`获取远程文件列表失败: ${error}`)
+  }
+
+  return remoteFiles
+}
+
+// 生成同步操作队列
+function generateSyncOperations(
+  localFiles: Map<string, LocalFile>,
+  remoteFiles: Map<string, S3Object>,
+  prefix: string,
+): SyncOperation[] {
+  const operations: SyncOperation[] = []
+
+  // 1. 检查需要上传的文件（本地存在，远程不存在或需要覆盖）
+  for (const [relativePath, localFile] of localFiles) {
+    const remoteFile = remoteFiles.get(relativePath)
+    const s3Key = prefix + relativePath
+
+    if (!remoteFile) {
+      // 远程不存在，需要上传
+      operations.push({
+        type: 'upload',
+        localPath: localFile.path,
+        s3Key,
+      })
+    }
+    else {
+      // 远程存在，可以选择比较文件大小或修改时间来决定是否覆盖
+      // 这里简单实现为总是覆盖（覆盖式同步）
+      operations.push({
+        type: 'upload',
+        localPath: localFile.path,
+        s3Key,
+      })
+    }
+  }
+
+  // 2. 检查需要删除的远程文件（远程存在，本地不存在）
+  for (const [relativePath] of remoteFiles) {
+    if (!localFiles.has(relativePath)) {
+      operations.push({
+        type: 'delete',
+        s3Key: prefix + relativePath,
+      })
+    }
+  }
+
+  return operations
+}
+
+// 执行同步操作
+async function executeSyncOperations(
+  operations: SyncOperation[],
+  endpointUrl: string,
+  bucket: string,
+) {
+  for (let i = 0; i < operations.length; i++) {
+    const operation = operations[i]
+    if (!operation)
+      continue
+
+    try {
+      if (operation.type === 'upload' && operation.localPath) {
+        progressMessages.value.push(`上传: ${operation.s3Key}`)
+        await invoke('upload_file', {
+          endpoint_url: endpointUrl,
+          bucket,
+          localPath: operation.localPath,
+          s3Key: operation.s3Key,
+        })
+      }
+      else if (operation.type === 'delete') {
+        progressMessages.value.push(`删除: ${operation.s3Key}`)
+        await invoke('delete_object', {
+          endpoint_url: endpointUrl,
+          bucket,
+          s3Key: operation.s3Key,
+        })
+      }
+
+      progressMessages.value.push(`完成 ${i + 1}/${operations.length}`)
+    }
+    catch (error) {
+      const errorMsg = `${operation.type === 'upload' ? '上传' : '删除'}失败: ${operation.s3Key} - ${error}`
+      progressMessages.value.push(errorMsg)
+      throw new Error(errorMsg)
+    }
+  }
+}
 
 async function selectLocalDir() {
   const selected = await open({
@@ -104,15 +300,40 @@ async function startUpload() {
   progressMessages.value = ['开始 S3 上传操作...']
 
   try {
-    const params = JSON.stringify(form)
-    await invoke('upload_to_s3', { params })
+    const remotePrefix = form.remote_dir.replace(/^\//, '') + (form.remote_dir.endsWith('/') ? '' : '/')
 
-    progressMessages.value.push('上传完成')
+    // 1. 获取本地文件列表
+    progressMessages.value.push('扫描本地文件...')
+    const localFiles = await getLocalFiles(form.local_dir)
+    progressMessages.value.push(`发现本地文件: ${localFiles.size} 个`)
+
+    // 2. 获取远程文件列表
+    progressMessages.value.push('获取远程文件列表...')
+    const remoteFiles = await getRemoteFiles(form.s3_instance.endpoint_url, form.s3_config.bucket, remotePrefix)
+    progressMessages.value.push(`发现远程文件: ${remoteFiles.size} 个`)
+
+    // 3. 生成同步操作队列
+    progressMessages.value.push('生成同步操作队列...')
+    const operations = generateSyncOperations(localFiles, remoteFiles, remotePrefix)
+    progressMessages.value.push(`生成操作队列: ${operations.length} 个操作`)
+
+    if (operations.length === 0) {
+      progressMessages.value.push('本地和远程文件完全一致，无需同步')
+      ElMessage.success('本地和远程文件完全一致，无需同步')
+      return
+    }
+
+    // 4. 执行同步操作
+    progressMessages.value.push('开始执行同步操作...')
+    await executeSyncOperations(operations, form.s3_instance.endpoint_url, form.s3_config.bucket)
+
+    progressMessages.value.push('同步完成！')
     ElMessage.success('S3 上传完成')
   }
   catch (error: unknown) {
-    progressMessages.value.push(`错误: ${error}`)
-    ElMessage.error(`S3 上传失败: ${error}`)
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    progressMessages.value.push(`错误: ${errorMsg}`)
+    ElMessage.error(`S3 上传失败: ${errorMsg}`)
   }
   finally {
     loading.value = false
@@ -148,56 +369,37 @@ onBeforeUnmount(() => {
       label-suffix="："
       @submit.prevent="startUpload"
     >
-      <ElFormItem label="Access Key ID" prop="s3_config.access_key_id">
-        <ElInput
-          v-model.trim="form.s3_config.access_key_id"
-          placeholder="请输入 AWS Access Key ID"
+      <ElFormItem label="S3 实例" prop="s3_instance.endpoint_url">
+        <ElSelect
+          v-model="form.s3_instance.endpoint_url"
+          placeholder="请选择已配置的 S3 实例"
           :class="$style.input"
           :disabled="loading"
+          filterable
         >
-          <template #prefix>
-            <Key :size="16" />
-          </template>
-        </ElInput>
+          <ElOption
+            v-for="instance in s3Instances"
+            :key="instance.endpoint_url"
+            :label="instance.endpoint_url"
+            :value="instance.endpoint_url"
+          >
+            <div class="flex items-center">
+              <HardDrive :size="16" class="mr-2 text-gray-500" />
+              <span>{{ instance.endpoint_url }}</span>
+            </div>
+          </ElOption>
+        </ElSelect>
       </ElFormItem>
 
-      <ElFormItem label="Secret Access Key" prop="s3_config.secret_access_key">
+      <ElFormItem label="区域 (Region)" prop="s3_instance.region">
         <ElInput
-          v-model.trim="form.s3_config.secret_access_key"
-          placeholder="请输入 AWS Secret Access Key"
-          type="password"
-          show-password
-          :class="$style.input"
-          :disabled="loading"
-        >
-          <template #prefix>
-            <Key :size="16" />
-          </template>
-        </ElInput>
-      </ElFormItem>
-
-      <ElFormItem label="区域 (Region)" prop="s3_config.region">
-        <ElInput
-          v-model.trim="form.s3_config.region"
-          placeholder="例如: tos-s3-cn-shanghai, us-east-1"
+          v-model.trim="form.s3_instance.region"
+          placeholder="自动从选择的实例获取"
           :class="$style.regionInput"
-          :disabled="loading"
+          readonly
         >
           <template #prefix>
             <MapPin :size="16" />
-          </template>
-        </ElInput>
-      </ElFormItem>
-
-      <ElFormItem label="终端节点 URL (Endpoint)" prop="s3_config.endpoint_url">
-        <ElInput
-          v-model.trim="form.s3_config.endpoint_url"
-          placeholder="例如: https://tos-s3-cn-shanghai.volces.com (Volces) 或 https://s3.amazonaws.com (AWS)"
-          :class="$style.input"
-          :disabled="loading"
-        >
-          <template #prefix>
-            <Globe :size="16" />
           </template>
         </ElInput>
       </ElFormItem>

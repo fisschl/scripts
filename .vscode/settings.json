@@ -21,9 +21,8 @@
     "editor.defaultFormatter": "dbaeumer.vscode-eslint"
   },
   "editor.formatOnSave": true,
-  "tailwindCSS.classAttributes": [
-    "class",
-    "className",
-    "active-class"
-  ]
+  "tailwindCSS.classAttributes": ["class", "className", "active-class"],
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  }
 }
