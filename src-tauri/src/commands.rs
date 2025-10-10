@@ -2,8 +2,8 @@
 //!
 //! 专门编写暴露给前端的函数，通过 Tauri 命令与前端交互
 
+pub mod command_executor;
 pub mod fs;
-mod repo_mirror;
 mod s3_upload;
 use crate::utils::hash;
 use std::path::PathBuf;
@@ -22,24 +22,6 @@ pub fn calculate_file_hash(file_path: String) -> Result<String, String> {
     let path = PathBuf::from(file_path);
 
     hash::calculate_file_hash(&path).map_err(|e| format!("计算文件哈希值失败: {}", e))
-}
-
-/// 仓库镜像同步功能
-///
-/// # 参数
-/// - `app_handle`: Tauri 应用句柄，用于发送进度事件和访问应用资源
-/// - `from`: 源仓库路径或URL
-/// - `to`: 目标仓库路径
-///
-/// # 返回值
-/// - 成功时返回 Ok(())
-/// - 失败时返回错误信息字符串
-///
-/// # 功能说明
-/// 该函数用于将源仓库的内容镜像同步到目标位置，支持本地到本地、本地到远程的仓库同步
-#[command]
-pub fn repo_mirror(app_handle: tauri::AppHandle, from: String, to: String) -> Result<(), String> {
-    repo_mirror::repo_mirror(app_handle, from, to)
 }
 
 /// 将本地目录覆盖式上传到 S3 远程目录
