@@ -12,6 +12,7 @@ pub fn run() {
             commands::upload_to_s3,
             commands::fs::list_directory,
             commands::fs::copy_file,
+            commands::fs::remove_path,
             commands::command_executor::execute_command_sync
         ])
         .run(tauri::generate_context!())

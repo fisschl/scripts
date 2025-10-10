@@ -1,19 +1,14 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
+import { join, tempDir } from '@tauri-apps/api/path'
 import { ExternalLink, GitBranch, Link } from 'lucide-vue-next'
-import LogViewer from '@/components/LogViewer.vue'
 
 // 类型定义
 interface CommandResult {
   exit_code: number | null
   stdout: string
   stderr: string
-}
-
-interface ProgressInfo {
-  message: string
-  progress: number // 0.0 - 1.0
 }
 
 // 表单数据
@@ -38,161 +33,91 @@ const rules = reactive<FormRules>({
 })
 
 const loading = ref(false)
-const progressMessages = ref<string[]>([])
+const drawerVisible = ref(false)
+const currentStep = ref(0)
 
-/**
- * 验证源仓库是否可访问
- */
-async function validateRepository(source: string): Promise<void> {
-  const result = await invoke<CommandResult>('execute_command_sync', {
-    command: 'git',
-    args: ['ls-remote', source],
-  })
-
-  if (result.exit_code !== 0) {
-    throw new Error(result.stderr || '源仓库不可访问')
-  }
-}
-
-/**
- * 解析 Git 输出中的进度信息
- */
-function parseGitProgress(output: string): ProgressInfo | null {
-  const patterns = [
-    {
-      pattern: /Counting objects:\s+(\d+)%/,
-      phase: '计数对象',
-      baseProgress: 0.1,
-    },
-    {
-      pattern: /Compressing objects:\s+(\d+)%/,
-      phase: '压缩对象',
-      baseProgress: 0.3,
-    },
-    {
-      pattern: /Receiving objects:\s+(\d+)%/,
-      phase: '接收对象',
-      baseProgress: 0.5,
-    },
-    {
-      pattern: /Resolving deltas:\s+(\d+)%/,
-      phase: '解析差异',
-      baseProgress: 0.8,
-    },
-    {
-      pattern: /Enumerating objects:\s+(\d+)%/,
-      phase: '枚举对象',
-      baseProgress: 0.1,
-    },
-  ]
-
-  for (const { pattern, phase, baseProgress } of patterns) {
-    const match = output.match(pattern)
-    if (match) {
-      const percentage = Number.parseInt(match[1]!) / 100
-      return {
-        message: `${phase}: ${match[1]}%`,
-        progress: baseProgress + (percentage * 0.2), // 每个阶段占 20% 进度
-      }
-    }
-  }
-
-  return null
-}
-
-/**
- * 执行 Git 克隆命令
- */
-async function executeGitClone(
-  source: string,
-  target: string,
-  onProgress?: (info: ProgressInfo) => void,
-): Promise<void> {
-  // 使用 --mirror 参数进行镜像克隆
-  const result = await invoke<CommandResult>('execute_command_sync', {
-    command: 'git',
-    args: ['clone', '--mirror', source, target],
-  })
-
-  if (result.exit_code !== 0) {
-    throw new Error(result.stderr || 'Git 克隆失败')
-  }
-
-  // 如果有输出，尝试解析进度信息
-  if (result.stdout && onProgress) {
-    const lines = result.stdout.split('\n')
-    for (const line of lines) {
-      const progress = parseGitProgress(line)
-      if (progress) {
-        onProgress(progress)
-      }
-    }
-  }
-}
-
-/**
- * 主要的仓库镜像函数
- */
-async function mirrorRepository(
-  source: string,
-  target: string,
-  onProgress?: (info: ProgressInfo) => void,
-): Promise<void> {
-  try {
-    // 1. 验证源仓库
-    onProgress?.({ message: '验证源仓库...', progress: 0.1 })
-    await validateRepository(source)
-
-    // 2. 执行克隆
-    onProgress?.({ message: '开始克隆仓库...', progress: 0.3 })
-    await executeGitClone(source, target, onProgress)
-
-    // 3. 完成
-    onProgress?.({ message: '仓库镜像完成', progress: 1.0 })
-  }
-  catch (error) {
-    onProgress?.({
-      message: `镜像失败: ${error instanceof Error ? error.message : String(error)}`,
-      progress: -1,
-    })
-    throw error
-  }
-}
-
-/**
- * 简化版本的仓库镜像函数（仅克隆）
- */
-async function simpleMirrorRepository(
-  source: string,
-  target: string,
-  onProgress?: (message: string) => void,
-): Promise<void> {
-  const progressCallback = onProgress
-    ? (info: ProgressInfo) => onProgress(info.message)
-    : undefined
-
-  await mirrorRepository(source, target, progressCallback)
-}
+// 步骤定义
+const steps = [
+  '验证源仓库',
+  '克隆仓库',
+  '配置远程',
+  '推送到新远程',
+  '清理临时目录',
+  '操作完成',
+]
 
 async function startClone() {
   await formRef.value?.validate()
 
   loading.value = true
-  progressMessages.value = []
+  drawerVisible.value = true
+  currentStep.value = 0
 
   try {
-    await simpleMirrorRepository(
-      form.sourceUrl,
-      form.targetUrl,
-      (message: string) => {
-        progressMessages.value.push(message)
-      },
-    )
+    // 步骤1：验证源仓库
+    currentStep.value = 1
+    await new Promise(resolve => setTimeout(resolve, 500))
+    await invoke<CommandResult>('execute_command_sync', {
+      command: 'git',
+      args: ['ls-remote', form.sourceUrl],
+      workingDir: await tempDir(),
+    })
 
-    ElMessage.success('仓库克隆操作完成')
+    // 步骤2：克隆仓库到临时目录
+    currentStep.value = 2
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // 从目标URL提取仓库名作为临时目录名
+    const repoName = form.targetUrl.split('/').pop()?.replace('.git', '') || 'temp-repo'
+    const systemTempDir = await tempDir()
+    const tempPath = await join(systemTempDir, repoName)
+
+    await invoke<CommandResult>('execute_command_sync', {
+      command: 'git',
+      args: ['clone', '--mirror', form.sourceUrl, tempPath],
+      workingDir: systemTempDir,
+    })
+
+    // 步骤3：配置新的远程推送地址
+    currentStep.value = 3
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    await invoke<CommandResult>('execute_command_sync', {
+      command: 'git',
+      args: ['remote', 'add', 'target', form.targetUrl],
+      workingDir: tempPath,
+    })
+
+    // 步骤4：推送到新远程
+    currentStep.value = 4
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    await invoke<CommandResult>('execute_command_sync', {
+      command: 'git',
+      args: ['push', '--mirror', 'target'],
+      workingDir: tempPath,
+    })
+
+    // 步骤5：清理临时目录
+    currentStep.value = 5
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // 使用 Rust 后端递归删除临时目录
+    await invoke('remove_path', {
+      path: tempPath,
+    })
+
+    // 步骤6：操作完成
+    currentStep.value = 6
+
+    // 等待1秒后关闭抽屉
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    drawerVisible.value = false
+
+    ElMessage.success('仓库镜像和推送完成')
   }
-  catch (error: unknown) {
-    progressMessages.value.push(`错误: ${error}`)
+  catch (error) {
+    drawerVisible.value = false
     ElMessage.error(`克隆失败: ${error}`)
   }
   finally {
@@ -244,10 +169,32 @@ async function startClone() {
         </ElButton>
       </div>
     </ElForm>
-    <template v-if="progressMessages.length > 0">
-      <ElDivider />
-      <LogViewer :logs="progressMessages" class="mb-4" />
-    </template>
+
+    <!-- 进度抽屉 -->
+    <ElDrawer
+      v-model="drawerVisible"
+      title="仓库克隆进度"
+      direction="rtl"
+      size="400px"
+      :with-header="true"
+      :show-close="false"
+      :modal="true"
+      :close-on-click-modal="false"
+    >
+      <ElSteps
+        :active="currentStep"
+        direction="vertical"
+        finish-status="success"
+        align-center
+        class="px-6"
+      >
+        <ElStep
+          v-for="(step, index) in steps"
+          :key="index"
+          :title="step"
+        />
+      </ElSteps>
+    </ElDrawer>
   </div>
 </template>
 

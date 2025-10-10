@@ -2,7 +2,7 @@
 //!
 //! 提供前端可调用的文件系统操作命令
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::fs;
 use std::path::Path;
 use tauri::command;
@@ -18,35 +18,18 @@ pub struct FileInfo {
     size: u64,
 }
 
-/// 列举目录内容命令参数
-#[derive(Debug, Deserialize)]
-pub struct ListDirectoryArgs {
-    /// 目录路径
-    path: String,
-}
-
-/// 复制文件命令参数
-#[derive(Debug, Deserialize)]
-pub struct CopyFileArgs {
-    /// 源文件路径
-    from: String,
-    /// 目标文件路径
-    to: String,
-    /// 目标存在时是否覆盖
-    overwrite: bool,
-}
 
 /// 列举目录下所有文件和子目录
 ///
 /// # 参数
-/// - `args`: 包含目录路径和是否递归的参数
+/// - `path`: 目录路径
 ///
 /// # 返回值
 /// - 成功时返回文件信息列表
 /// - 失败时返回错误信息字符串
 #[command]
-pub fn list_directory(args: ListDirectoryArgs) -> Result<Vec<FileInfo>, String> {
-    let path = Path::new(&args.path);
+pub fn list_directory(path: String) -> Result<Vec<FileInfo>, String> {
+    let path = Path::new(&path);
 
     if !path.exists() {
         return Err("目录不存在".to_string());
@@ -82,15 +65,18 @@ pub fn list_directory(args: ListDirectoryArgs) -> Result<Vec<FileInfo>, String> 
 /// 复制文件
 ///
 /// # 参数
-/// - `args`: 包含源路径、目标路径和是否覆盖的参数
+/// - `from`: 源文件路径
+/// - `to`: 目标文件路径
+/// - `overwrite`: 目标存在时是否覆盖，可选参数，默认为 false
 ///
 /// # 返回值
 /// - 成功时返回 Ok(())
 /// - 失败时返回错误信息字符串
 #[command]
-pub fn copy_file(args: CopyFileArgs) -> Result<(), String> {
-    let from = Path::new(&args.from);
-    let to = Path::new(&args.to);
+pub fn copy_file(from: String, to: String, overwrite: Option<bool>) -> Result<(), String> {
+    let from = Path::new(&from);
+    let to = Path::new(&to);
+    let overwrite = overwrite.unwrap_or(false);
 
     // 检查源文件是否存在
     if !from.exists() {
@@ -98,7 +84,7 @@ pub fn copy_file(args: CopyFileArgs) -> Result<(), String> {
     }
 
     // 检查目标文件是否已存在，如果已存在且不允许覆盖则直接返回成功
-    if to.exists() && !args.overwrite {
+    if to.exists() && !overwrite {
         return Ok(());
     }
 
@@ -111,6 +97,33 @@ pub fn copy_file(args: CopyFileArgs) -> Result<(), String> {
 
     // 复制文件
     fs::copy(from, to).map_err(|e| format!("复制文件失败: {}", e))?;
+
+    Ok(())
+}
+
+/// 递归删除文件或目录
+///
+/// # 参数
+/// - `path`: 要删除的路径
+///
+/// # 返回值
+/// - 成功时返回 Ok(())
+/// - 失败时返回错误信息字符串
+#[command]
+pub fn remove_path(path: String) -> Result<(), String> {
+    let path = Path::new(&path);
+
+    if !path.exists() {
+        return Ok(()); // 路径不存在，视为成功
+    }
+
+    if path.is_file() {
+        // 删除文件
+        fs::remove_file(path).map_err(|e| format!("删除文件失败: {}", e))?;
+    } else if path.is_dir() {
+        // 递归删除目录
+        fs::remove_dir_all(path).map_err(|e| format!("删除目录失败: {}", e))?;
+    }
 
     Ok(())
 }

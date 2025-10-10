@@ -144,9 +144,7 @@ async function listFilesRecursive(dirPath: string): Promise<string[]> {
   const result: string[] = []
 
   const files = await invoke<FileInfo[]>('list_directory', {
-    args: {
-      path: dirPath,
-    },
+    path: dirPath,
   })
 
   for (const file of files) {
@@ -189,11 +187,9 @@ async function copySingleFile(
 
   // 4. 执行文件复制（如果不允许覆盖，则跳过已存在的文件）
   await invoke('copy_file', {
-    args: {
-      from: sourceFile,
-      to: targetPath,
-      overwrite: false,
-    },
+    from: sourceFile,
+    to: targetPath,
+    overwrite: false,
   })
 }
 </script>
