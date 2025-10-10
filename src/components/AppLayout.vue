@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CloudUpload, Copy, GitBranch, Hash } from 'lucide-vue-next'
+import { CloudUpload, Copy, GitBranch, HardDrive, Hash } from 'lucide-vue-next'
 
 const route = useRoute()
 
@@ -22,6 +22,12 @@ const examples = computed(() => {
       path: '/repo-clone',
       icon: markRaw(GitBranch),
       isActive: route.path.startsWith('/repo-clone'),
+    },
+    {
+      name: 'S3 配置',
+      path: '/s3-config',
+      icon: markRaw(HardDrive),
+      isActive: route.path.startsWith('/s3-config'),
     },
     {
       name: 'S3 上传',

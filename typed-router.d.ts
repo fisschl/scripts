@@ -22,6 +22,7 @@ declare module 'vue-router/auto-routes' {
     '/file-copy/': RouteRecordInfo<'/file-copy/', '/file-copy', Record<never, never>, Record<never, never>>,
     '/file-hash': RouteRecordInfo<'/file-hash', '/file-hash', Record<never, never>, Record<never, never>>,
     '/repo-clone': RouteRecordInfo<'/repo-clone', '/repo-clone', Record<never, never>, Record<never, never>>,
+    '/s3-config': RouteRecordInfo<'/s3-config', '/s3-config', Record<never, never>, Record<never, never>>,
     '/s3-upload': RouteRecordInfo<'/s3-upload', '/s3-upload', Record<never, never>, Record<never, never>>,
   }
 
@@ -50,6 +51,10 @@ declare module 'vue-router/auto-routes' {
     }
     'src/pages/repo-clone.vue': {
       routes: '/repo-clone'
+      views: never
+    }
+    'src/pages/s3-config.vue': {
+      routes: '/s3-config'
       views: never
     }
     'src/pages/s3-upload.vue': {
