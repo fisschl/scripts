@@ -123,13 +123,17 @@ async function startCopy() {
       await copySingleFile(item.path, form.targetPath)
       pull(files, item)
     }
+
+    ElMessage.success('所有文件复制完成')
+    // 等待1秒后关闭弹窗
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    showProgressDrawer.value = false
   }
   catch (error: unknown) {
     ElMessage.error(`复制失败: ${error}`)
   }
   finally {
     loading.value = false
-    showProgressDrawer.value = false
   }
 }
 
@@ -177,7 +181,7 @@ async function copySingleFile(
 
   // 2. 获取文件扩展名
   const lastDotIndex = sourceFile.lastIndexOf('.')
-  const extension = lastDotIndex > -1 ? sourceFile.substring(lastDotIndex + 1) : ''
+  const extension = lastDotIndex > -1 ? sourceFile.substring(lastDotIndex + 1) : undefined
 
   // 3. 构建目标文件路径（哈希值 + 原始扩展名）
   const targetFileName = extension ? `${hash}.${extension}` : hash
