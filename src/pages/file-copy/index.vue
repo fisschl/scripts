@@ -140,10 +140,10 @@ async function startCopy() {
     // 2. 筛选匹配扩展名的文件
     const allowedExtensions = extensions.map(ext => ext.toLowerCase())
     allFiles.filter((file) => {
-      return allowedExtensions.some(ext => file.toLowerCase().endsWith(`.${ext}`))
+      return allowedExtensions.some(ext => file.path.toLowerCase().endsWith(`.${ext}`))
     })
-      .forEach((filePath) => {
-        files.push({ path: filePath, status: 'pending' })
+      .forEach((fileInfo) => {
+        files.push({ path: fileInfo.path, status: 'pending' })
       })
 
     for (const item of files) {

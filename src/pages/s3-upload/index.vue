@@ -2,6 +2,7 @@
 import type { FormRules } from 'element-plus'
 import type { infer as Infer } from 'zod/mini'
 import type { S3Object } from './components/s3-files'
+import type { FileInfo } from '@/pages/file-copy/components/file-operations'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
@@ -9,8 +10,8 @@ import { merge } from 'lodash-es'
 import { CloudUpload, Database, Folder } from 'lucide-vue-next'
 import { object, string } from 'zod/mini'
 import LogViewer from '@/components/LogViewer.vue'
-import { listFilesRecursiveWithInfo } from '@/pages/file-copy/components/file-operations'
-import { listAllRemoteFiles } from './components/s3-files'
+import { listFilesRecursive } from '@/pages/file-copy/components/file-operations'
+import { listRemoteFilesRecursive } from './components/s3-files'
 import S3InstanceSelector from './components/S3InstanceSelector.vue'
 
 /**
@@ -29,13 +30,6 @@ const FormDataZod = object({
 
 /** 表单数据类型 */
 interface FormData extends Infer<typeof FormDataZod> {}
-
-// 本地文件信息结构
-interface LocalFile {
-  path: string
-  size: number
-  lastModified: Date
-}
 
 // 同步操作类型
 interface SyncOperation {
@@ -95,25 +89,29 @@ store.then(async (store) => {
 /**
  * 获取本地文件列表
  *
- * 扫描指定目录下的所有文件，返回相对路径到文件信息的映射。
+ * 递归扫描指定目录下的所有文件，返回相对路径到文件信息的映射。
  * 自动处理路径分隔符转换，并过滤出文件类型（排除目录）。
  *
  * @param dir - 要扫描的本地目录路径
- * @returns Promise<Map<string, LocalFile>> 返回相对路径到本地文件信息的映射
+ * @returns Promise<Map<string, FileInfo>> 返回相对路径到文件信息的映射
  *
  * @throws {Error} 当目录扫描失败时抛出错误
  */
-async function getLocalFiles(dir: string): Promise<Map<string, LocalFile>> {
-  try {
-    const fileInfoMap = await listFilesRecursiveWithInfo(dir)
-    const localFiles = new Map<string, LocalFile>()
+async function getLocalFiles(dir: string): Promise<Map<string, FileInfo>> {
+  const localFiles = new Map<string, FileInfo>()
 
-    for (const [relativePath, fileInfo] of fileInfoMap) {
-      localFiles.set(relativePath, {
-        path: fileInfo.path,
-        size: fileInfo.size,
-        lastModified: new Date(fileInfo.last_modified),
-      })
+  try {
+    // 获取所有文件的完整信息
+    const allFiles = await listFilesRecursive(dir)
+
+    for (const fileInfo of allFiles) {
+      // 移除开头的路径分隔符并统一为正斜杠
+      const relativePath = fileInfo.path
+        .replace(dir, '')
+        .replace(/^[\\/]+/, '')
+        .replace(/[\\/]+/g, '/')
+
+      localFiles.set(relativePath, fileInfo)
     }
 
     return localFiles
@@ -135,7 +133,7 @@ async function getLocalFiles(dir: string): Promise<Map<string, LocalFile>> {
  * @returns SyncOperation[] 返回同步操作队列
  */
 function generateSyncOperations(
-  localFiles: Map<string, LocalFile>,
+  localFiles: Map<string, FileInfo>,
   remoteFiles: Map<string, S3Object>,
   prefix: string,
 ): SyncOperation[] {
@@ -269,7 +267,7 @@ async function startUpload() {
   progressMessages.value = ['开始 S3 上传操作...']
 
   try {
-    const remotePrefix = form.remote_dir.replace(/^\//, '') + (form.remote_dir.endsWith('/') ? '' : '/')
+    const remotePrefix = (`${form.remote_dir}/`).replace(/^[\\/]+/, '').replace(/[\\/]+/g, '/')
 
     // 1. 获取本地文件列表
     progressMessages.value.push('扫描本地文件...')
@@ -278,7 +276,7 @@ async function startUpload() {
 
     // 2. 获取远程文件列表
     progressMessages.value.push('获取远程文件列表...')
-    const remoteFiles = await listAllRemoteFiles(
+    const remoteObjects = await listRemoteFilesRecursive(
       form.endpoint_url,
       form.bucket,
       remotePrefix,
@@ -286,9 +284,19 @@ async function startUpload() {
         progressMessages.value[progressMessages.value.length - 1] = `获取远程文件列表... 已获取 ${count} 个对象`
       },
     )
+
+    // 3. 转换为相对路径映射
+    const remoteFiles = new Map<string, S3Object>()
+    for (const obj of remoteObjects) {
+      const relativeKey = obj.key.replace(remotePrefix, '')
+      if (relativeKey) {
+        remoteFiles.set(relativeKey, obj)
+      }
+    }
+
     progressMessages.value.push(`发现远程文件: ${remoteFiles.size} 个`)
 
-    // 3. 生成同步操作队列
+    // 4. 生成同步操作队列
     progressMessages.value.push('生成同步操作队列...')
     const operations = generateSyncOperations(localFiles, remoteFiles, remotePrefix)
     progressMessages.value.push(`生成操作队列: ${operations.length} 个操作`)
@@ -299,7 +307,7 @@ async function startUpload() {
       return
     }
 
-    // 4. 执行同步操作
+    // 5. 执行同步操作
     progressMessages.value.push('开始执行同步操作...')
     await executeSyncOperations(operations, form.endpoint_url, form.bucket)
 

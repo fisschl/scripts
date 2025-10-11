@@ -32,23 +32,23 @@ export interface ListObjectsResponse {
  * 获取所有远程文件列表（分页获取）
  *
  * 递归获取指定 S3 存储桶和前缀下的所有对象，支持分页和进度回调。
- * 自动处理分页逻辑，并返回去除了前缀的相对路径映射。
+ * 自动处理分页逻辑，返回完整的 S3 对象列表。
  *
  * @param endpointUrl - S3 服务的终端节点 URL
  * @param bucket - 存储桶名称
  * @param prefix - 对象键前缀过滤器
  * @param progressCallback - 进度回调函数，接收已处理的对象数量
- * @returns Promise<Map<string, S3Object>> 返回相对路径到 S3 对象的映射
+ * @returns Promise<S3Object[]> 返回 S3 对象列表
  *
  * @throws {Error} 当 API 调用失败时抛出错误
  */
-export async function listAllRemoteFiles(
+export async function listRemoteFilesRecursive(
   endpointUrl: string,
   bucket: string,
   prefix: string,
   progressCallback?: (count: number) => void,
-): Promise<Map<string, S3Object>> {
-  const remoteFiles = new Map<string, S3Object>()
+): Promise<S3Object[]> {
+  const remoteObjects: S3Object[] = []
   let continuationToken: string | undefined
   let totalObjects = 0
 
@@ -60,13 +60,8 @@ export async function listAllRemoteFiles(
       continuation_token: continuationToken,
     })
 
-    // 处理当前页的对象
-    for (const obj of response.objects) {
-      const relativeKey = obj.key.replace(prefix, '')
-      if (relativeKey) {
-        remoteFiles.set(relativeKey, obj)
-      }
-    }
+    // 添加当前页的对象
+    remoteObjects.push(...response.objects)
 
     totalObjects += response.objects.length
 
@@ -84,5 +79,5 @@ export async function listAllRemoteFiles(
     }
   } while (continuationToken)
 
-  return remoteFiles
+  return remoteObjects
 }
