@@ -113,7 +113,7 @@ async function scanAndCopy(dirPath: string, allowedExtensions: string[]): Promis
     if (entry.is_dir) {
       // 递归处理子目录
       await scanAndCopy(entry.path, allowedExtensions)
-      return
+      continue
     }
     // 检查文件扩展名
     const extIndex = entry.path.lastIndexOf('.')
@@ -160,6 +160,7 @@ async function startCopy() {
     await scanAndCopy(sourcePath, allowedExtensions)
 
     ElMessage.success(`文件复制完成！`)
+    currentFile.value = ''
   }
   catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error)
