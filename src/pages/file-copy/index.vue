@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
 import type { infer as Infer } from 'zod/mini'
-import type { FileItem } from './components/types'
+import type { FileInfo } from '@/pages/file-copy/components/file-operations'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
-import { merge, pull } from 'lodash-es'
+import { merge } from 'lodash-es'
 import { Copy, Folder } from 'lucide-vue-next'
 import { array, object, string } from 'zod/mini'
-import { listFilesRecursive } from '@/pages/file-copy/components/file-operations'
-import FileListItem from './components/FileListItem.vue'
 
 /**
  * 保存的表单数据 Zod 模式定义
@@ -53,9 +51,6 @@ const rules = reactive<FormRules>({
     },
   ],
 })
-
-/** 进度抽屉显示状态 */
-const showProgressDrawer = ref(false)
 
 /** 表单存储键名 */
 const FORM_STORAGE_KEY = 'file-copy-form'
@@ -103,14 +98,44 @@ async function selectTargetPath() {
 /** 加载状态 */
 const loading = ref(false)
 
-/** 待处理文件列表 */
-const files = reactive<FileItem[]>([])
+/** 当前处理的文件状态 */
+const currentFile = ref<string>()
+
+/**
+ * 串行化扫描和复制文件
+ *
+ * 递归扫描目录，边扫描边复制，实现串行化处理
+ */
+async function scanAndCopy(dirPath: string, allowedExtensions: string[]): Promise<void> {
+  const entries = await invoke<FileInfo[]>('list_directory', { path: dirPath })
+
+  for (const entry of entries) {
+    if (entry.is_dir) {
+      // 递归处理子目录
+      await scanAndCopy(entry.path, allowedExtensions)
+      return
+    }
+    // 检查文件扩展名
+    const extIndex = entry.path.lastIndexOf('.')
+    if (extIndex === -1)
+      continue
+
+    const ext = entry.path.slice(extIndex + 1).toLowerCase()
+    if (!allowedExtensions.includes(ext))
+      continue
+
+    currentFile.value = entry.path
+
+    // 复制文件
+    await copySingleFile(entry.path, form.targetPath)
+  }
+}
 
 /**
  * 开始文件复制流程
  *
- * 执行完整的文件复制流程：
- * 1. 递归扫描源目录
+ * 执行串行化的文件复制流程：
+ * 1. 边扫描边复制，递归处理目录
  * 2. 根据扩展名筛选文件
  * 3. 逐个复制文件到目标目录
  * 4. 使用哈希值生成唯一文件名避免冲突
@@ -124,46 +149,32 @@ async function startCopy() {
     await store.save()
   })
 
-  showProgressDrawer.value = true
   loading.value = true
+  currentFile.value = ''
 
   try {
     const { sourcePath, extensions } = form
-
-    // 1. 递归列举源目录中的所有文件
-    const allFiles = await listFilesRecursive(sourcePath)
-    if (allFiles.length === 0) {
-      throw new Error('源目录为空或无法访问')
-    }
-
-    files.length = 0
-    // 2. 筛选匹配扩展名的文件
     const allowedExtensions = extensions.map(ext => ext.toLowerCase())
-    allFiles.filter((file) => {
-      return allowedExtensions.some(ext => file.path.toLowerCase().endsWith(`.${ext}`))
-    })
-      .forEach((fileInfo) => {
-        files.push({ path: fileInfo.path, status: 'pending' })
-      })
 
-    for (const item of files) {
-      item.status = 'processing'
-      await copySingleFile(item.path, form.targetPath)
-      pull(files, item)
-    }
+    // 开始串行化扫描和复制
+    await scanAndCopy(sourcePath, allowedExtensions)
 
-    ElMessage.success('所有文件复制完成')
-    // 等待1秒后关闭弹窗
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    showProgressDrawer.value = false
+    ElMessage.success(`文件复制完成！`)
   }
   catch (error: unknown) {
-    ElMessage.error(`复制失败: ${error}`)
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`文件复制失败: ${errorMsg}`)
   }
   finally {
     loading.value = false
   }
 }
+
+const loadingText = computed(() => {
+  if (!currentFile.value)
+    return
+  return currentFile.value.replace(form.sourcePath, '')
+})
 
 /**
  * 复制单个文件 - 使用通用的 calculate_file_hash 指令
@@ -242,29 +253,19 @@ async function copySingleFile(
         />
       </ElFormItem>
 
-      <div class="mt-4">
-        <ElButton type="primary" native-type="submit" :loading="loading">
+      <div v-if="!loading" class="mt-4">
+        <ElButton type="primary" native-type="submit">
           <Copy :size="18" class="mr-2" />
           开始复制
         </ElButton>
       </div>
     </ElForm>
 
-    <!-- 文件复制进度抽屉 -->
-    <ElDrawer
-      v-model="showProgressDrawer"
-      :title="`待处理文件（${files.length}）`"
-      direction="rtl"
-      size="400"
-    >
-      <ul>
-        <FileListItem
-          v-for="(file, index) in files"
-          :key="index"
-          :file="file"
-        />
-      </ul>
-    </ElDrawer>
+    <!-- 当前文件 -->
+    <p v-if="loadingText" class="my-6 text-gray-600 dark:text-gray-400">
+      当前处理文件：
+      {{ loadingText }}
+    </p>
   </div>
 </template>
 

@@ -9,7 +9,6 @@ import { Store } from '@tauri-apps/plugin-store'
 import { merge } from 'lodash-es'
 import { CloudUpload, Database, Folder } from 'lucide-vue-next'
 import { object, string } from 'zod/mini'
-import LogViewer from '@/components/LogViewer.vue'
 import { listFilesRecursive } from '@/pages/file-copy/components/file-operations'
 import { listRemoteFilesRecursive } from './components/s3-files'
 import S3InstanceSelector from './components/S3InstanceSelector.vue'
@@ -66,7 +65,17 @@ const rules = reactive<FormRules>({
 })
 
 const loading = ref(false)
-const progressMessages = ref<string[]>([])
+const drawerVisible = ref(false)
+const currentStep = ref(0)
+const uploadProgress = ref(0)
+
+// 步骤定义
+const steps = [
+  { title: '准备上传', description: '验证配置和扫描文件' },
+  { title: '扫描文件', description: '分析本地和远程文件' },
+  { title: '上传文件', description: '同步文件到S3存储桶' },
+  { title: '完成', description: '上传操作完成' },
+]
 
 const FORM_STORAGE_KEY = 's3-upload-form'
 const store = Store.load('form-data.json')
@@ -193,6 +202,8 @@ async function executeSyncOperations(
   endpointUrl: string,
   bucket: string,
 ) {
+  currentStep.value = 2 // 切换到上传步骤
+
   for (let i = 0; i < operations.length; i++) {
     const operation = operations[i]
     if (!operation)
@@ -200,7 +211,6 @@ async function executeSyncOperations(
 
     try {
       if (operation.type === 'upload' && operation.localPath) {
-        progressMessages.value.push(`上传: ${operation.s3Key}`)
         await invoke('upload_file', {
           endpoint_url: endpointUrl,
           bucket,
@@ -209,7 +219,6 @@ async function executeSyncOperations(
         })
       }
       else if (operation.type === 'delete') {
-        progressMessages.value.push(`删除: ${operation.s3Key}`)
         await invoke('delete_object', {
           endpoint_url: endpointUrl,
           bucket,
@@ -217,11 +226,11 @@ async function executeSyncOperations(
         })
       }
 
-      progressMessages.value.push(`完成 ${i + 1}/${operations.length}`)
+      // 更新进度
+      uploadProgress.value = Math.round(((i + 1) / operations.length) * 100)
     }
     catch (error) {
       const errorMsg = `${operation.type === 'upload' ? '上传' : '删除'}失败: ${operation.s3Key} - ${error}`
-      progressMessages.value.push(errorMsg)
       throw new Error(errorMsg)
     }
   }
@@ -264,25 +273,23 @@ async function startUpload() {
   })
 
   loading.value = true
-  progressMessages.value = ['开始 S3 上传操作...']
+  drawerVisible.value = true
+  currentStep.value = 0
+  uploadProgress.value = 0
 
   try {
     const remotePrefix = (`${form.remote_dir}/`).replace(/^[\\/]+/, '').replace(/[\\/]+/g, '/')
 
+    currentStep.value = 1 // 切换到扫描文件步骤
+
     // 1. 获取本地文件列表
-    progressMessages.value.push('扫描本地文件...')
     const localFiles = await getLocalFiles(form.local_dir)
-    progressMessages.value.push(`发现本地文件: ${localFiles.size} 个`)
 
     // 2. 获取远程文件列表
-    progressMessages.value.push('获取远程文件列表...')
     const remoteObjects = await listRemoteFilesRecursive(
       form.endpoint_url,
       form.bucket,
       remotePrefix,
-      (count) => {
-        progressMessages.value[progressMessages.value.length - 1] = `获取远程文件列表... 已获取 ${count} 个对象`
-      },
     )
 
     // 3. 转换为相对路径映射
@@ -294,29 +301,23 @@ async function startUpload() {
       }
     }
 
-    progressMessages.value.push(`发现远程文件: ${remoteFiles.size} 个`)
-
     // 4. 生成同步操作队列
-    progressMessages.value.push('生成同步操作队列...')
     const operations = generateSyncOperations(localFiles, remoteFiles, remotePrefix)
-    progressMessages.value.push(`生成操作队列: ${operations.length} 个操作`)
 
     if (operations.length === 0) {
-      progressMessages.value.push('本地和远程文件完全一致，无需同步')
+      currentStep.value = 3 // 直接跳到完成步骤
       ElMessage.success('本地和远程文件完全一致，无需同步')
       return
     }
 
     // 5. 执行同步操作
-    progressMessages.value.push('开始执行同步操作...')
     await executeSyncOperations(operations, form.endpoint_url, form.bucket)
 
-    progressMessages.value.push('同步完成！')
+    currentStep.value = 3 // 完成步骤
     ElMessage.success('S3 上传完成')
   }
   catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error)
-    progressMessages.value.push(`错误: ${errorMsg}`)
     ElMessage.error(`S3 上传失败: ${errorMsg}`)
   }
   finally {
@@ -385,17 +386,55 @@ async function startUpload() {
         </ElInput>
       </ElFormItem>
 
-      <div class="mt-4">
-        <ElButton type="primary" :loading="loading" native-type="submit">
+      <div v-if="!loading" class="mt-4">
+        <ElButton type="primary" native-type="submit">
           <CloudUpload :size="18" class="mr-2" />
           开始上传
         </ElButton>
       </div>
     </ElForm>
-    <template v-if="progressMessages.length > 0">
-      <ElDivider />
-      <LogViewer :logs="progressMessages" class="mb-4" />
-    </template>
+
+    <!-- 抽屉组件 -->
+    <ElDrawer
+      v-model="drawerVisible"
+      title="S3 上传进度"
+      direction="rtl"
+      size="400px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+    >
+      <div class="p-4">
+        <!-- 步骤条 -->
+        <ElSteps :active="currentStep" direction="vertical" finish-status="success">
+          <ElStep
+            v-for="(step, index) in steps"
+            :key="index"
+            :title="step.title"
+            :description="step.description"
+          />
+        </ElSteps>
+
+        <!-- 上传进度条 -->
+        <div v-if="currentStep === 2" class="mt-6">
+          <div class="mb-2 text-sm text-gray-600">
+            上传进度
+          </div>
+          <ElProgress :percentage="uploadProgress" :stroke-width="8" />
+        </div>
+
+        <!-- 完成状态 -->
+        <div v-if="currentStep === 3" class="mt-6 text-center">
+          <ElResult
+            icon="success"
+            title="上传完成"
+            sub-title="所有文件已成功上传到 S3 存储桶"
+          />
+          <ElButton type="primary" class="mt-4" @click="drawerVisible = false">
+            关闭
+          </ElButton>
+        </div>
+      </div>
+    </ElDrawer>
   </div>
 </template>
 
