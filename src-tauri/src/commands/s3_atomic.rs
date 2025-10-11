@@ -8,7 +8,7 @@ use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tauri::Manager;
+use tauri_plugin_store::StoreExt;
 
 /// S3 服务配置
 ///
@@ -65,8 +65,9 @@ async fn create_authenticated_s3_client(
     endpoint_url: String,
     app: &tauri::AppHandle,
 ) -> Result<Client, String> {
-    // 获取 store
-    let store = app.state::<tauri_plugin_store::Store<tauri::Wry>>();
+    // 获取 store，使用与前端相同的配置文件名
+    let store = app.store("s3-config.json")
+        .map_err(|e| format!("加载S3配置失败: {}", e))?;
 
     // 获取所有 S3 实例配置
     let instances_value = store
