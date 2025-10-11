@@ -49,20 +49,8 @@ const rules = reactive<FormRules>({
 
 /** 加载状态 */
 const loading = ref(false)
-/** 进度抽屉显示状态 */
-const drawerVisible = ref(false)
-/** 当前执行步骤 */
-const currentStep = ref(0)
-
-/** 克隆步骤定义 */
-const steps = [
-  '验证源仓库',
-  '克隆仓库',
-  '配置远程',
-  '推送到新远程',
-  '清理临时目录',
-  '操作完成',
-]
+/** 当前执行步骤说明 */
+const currentStep = ref('')
 
 /**
  * 开始仓库克隆流程
@@ -78,13 +66,10 @@ async function startClone() {
   await formRef.value?.validate()
 
   loading.value = true
-  drawerVisible.value = true
-  currentStep.value = 0
 
   try {
     // 步骤1：验证源仓库
-    currentStep.value = 1
-    await new Promise(resolve => setTimeout(resolve, 500))
+    currentStep.value = '正在验证源仓库...'
     await invoke<CommandResult>('execute_command_sync', {
       command: 'git',
       args: ['ls-remote', form.sourceUrl],
@@ -92,8 +77,7 @@ async function startClone() {
     })
 
     // 步骤2：克隆仓库到临时目录
-    currentStep.value = 2
-    await new Promise(resolve => setTimeout(resolve, 500))
+    currentStep.value = '正在克隆仓库...'
 
     // 从目标URL提取仓库名作为临时目录名
     const repoName = form.targetUrl.split('/').pop()?.replace('.git', '') || 'temp-repo'
@@ -107,8 +91,7 @@ async function startClone() {
     })
 
     // 步骤3：配置新的远程推送地址
-    currentStep.value = 3
-    await new Promise(resolve => setTimeout(resolve, 500))
+    currentStep.value = '正在配置远程地址...'
 
     await invoke<CommandResult>('execute_command_sync', {
       command: 'git',
@@ -117,8 +100,7 @@ async function startClone() {
     })
 
     // 步骤4：推送到新远程
-    currentStep.value = 4
-    await new Promise(resolve => setTimeout(resolve, 500))
+    currentStep.value = '正在推送到目标仓库...'
 
     await invoke<CommandResult>('execute_command_sync', {
       command: 'git',
@@ -127,8 +109,7 @@ async function startClone() {
     })
 
     // 步骤5：清理临时目录
-    currentStep.value = 5
-    await new Promise(resolve => setTimeout(resolve, 500))
+    currentStep.value = '正在清理临时文件...'
 
     // 使用 Rust 后端递归删除临时目录
     await invoke('remove_path', {
@@ -136,16 +117,15 @@ async function startClone() {
     })
 
     // 步骤6：操作完成
-    currentStep.value = 6
+    currentStep.value = '✓ 仓库克隆完成！'
 
-    // 等待1秒后关闭抽屉
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    drawerVisible.value = false
+    // 清空步骤说明
+    currentStep.value = ''
 
     ElMessage.success('仓库镜像和推送完成')
   }
   catch (error) {
-    drawerVisible.value = false
+    currentStep.value = ''
     ElMessage.error(`克隆失败: ${error}`)
   }
   finally {
@@ -191,38 +171,21 @@ async function startClone() {
       </ElFormItem>
 
       <div class="mt-4">
-        <ElButton type="primary" :loading="loading" native-type="submit">
+        <ElButton
+          v-if="!loading"
+          type="primary"
+          native-type="submit"
+        >
           <GitBranch :size="18" class="mr-2" />
           开始克隆
         </ElButton>
       </div>
     </ElForm>
 
-    <!-- 进度抽屉 -->
-    <ElDrawer
-      v-model="drawerVisible"
-      title="仓库克隆进度"
-      direction="rtl"
-      size="400px"
-      :with-header="true"
-      :show-close="false"
-      :modal="true"
-      :close-on-click-modal="false"
-    >
-      <ElSteps
-        :active="currentStep"
-        direction="vertical"
-        finish-status="success"
-        align-center
-        class="px-6"
-      >
-        <ElStep
-          v-for="(step, index) in steps"
-          :key="index"
-          :title="step"
-        />
-      </ElSteps>
-    </ElDrawer>
+    <!-- 步骤说明 -->
+    <p v-if="currentStep" class="my-6 text-gray-600 dark:text-gray-300">
+      {{ currentStep }}
+    </p>
   </div>
 </template>
 
