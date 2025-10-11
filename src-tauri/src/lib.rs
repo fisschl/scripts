@@ -16,7 +16,8 @@ pub fn run() {
             commands::s3_atomic::list_buckets,
             commands::s3_atomic::list_objects,
             commands::s3_atomic::upload_file,
-            commands::s3_atomic::delete_object
+            commands::s3_atomic::delete_object,
+            commands::s3_atomic::clear_s3_client_cache
         ])
         .run(tauri::generate_context!())
         .expect("Error while running tauri application.");

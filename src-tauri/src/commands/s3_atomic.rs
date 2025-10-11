@@ -6,8 +6,11 @@ use anyhow::Result;
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
+use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 use tauri_plugin_store::StoreExt;
 
 /// S3 服务配置
@@ -51,19 +54,42 @@ pub struct ListObjectsResponse {
     pub next_continuation_token: Option<String>,
 }
 
-/// 创建已认证的 S3 客户端
+/// 获取 S3 客户端缓存
 ///
-/// 根据终端节点 URL 从应用存储中查找 S3 配置，并创建经过认证的客户端。
-/// 支持标准 AWS S3 以及兼容 S3 API 的第三方存储服务。
+/// 返回全局唯一的 S3 客户端缓存实例，具有以下特性：
+/// - 缓存时间：1分钟（60秒）
+/// - 最大容量：50个不同的 S3 客户端
+/// - 基于 endpoint_url 进行缓存键匹配
+/// - 自动过期：超过1分钟的客户端会被自动移除
+/// - 线程安全：支持并发访问
+///
+/// # 性能优势
+/// - 避免重复创建客户端的网络开销
+/// - 复用 HTTP 连接池
+/// - 减少 AWS 凭证验证次数
+fn get_s3_client_cache() -> &'static Cache<String, Client> {
+    static CLIENT_CACHE: OnceLock<Cache<String, Client>> = OnceLock::new();
+    CLIENT_CACHE.get_or_init(|| {
+        Cache::builder()
+            .time_to_live(Duration::from_secs(60)) // 1分钟缓存时间
+            .max_capacity(50) // 最多缓存50个客户端
+            .build()
+    })
+}
+
+/// 获取缓存的 S3 客户端
+///
+/// 如果缓存中存在指定 endpoint_url 的客户端则直接返回，
+/// 否则创建新客户端并缓存。
 ///
 /// # 参数
 ///
 /// * `endpoint_url` - S3 服务的终端节点 URL
-/// * `app` - Tauri 应用句柄，用于访问全局状态和 S3 配置
+/// * `app` - Tauri 应用句柄，用于获取 S3 配置
 ///
 /// # 返回值
 ///
-/// * `Ok(Client)` - 成功创建的 S3 客户端实例
+/// * `Ok(Client)` - 成功获取或创建的 S3 客户端实例
 /// * `Err(String)` - 配置查找失败或客户端创建失败
 ///
 /// # 错误
@@ -72,49 +98,67 @@ pub struct ListObjectsResponse {
 /// * 配置解析失败
 /// * 认证信息无效
 /// * 网络连接失败
-async fn create_authenticated_s3_client(
-    endpoint_url: String,
+pub async fn get_cached_s3_client(
+    endpoint_url: &str,
     app: &tauri::AppHandle,
 ) -> Result<Client, String> {
-    // 获取 store，使用与前端相同的配置文件名
-    let store = app.store("s3-config.json")
-        .map_err(|e| format!("加载S3配置失败: {}", e))?;
+    let cache = get_s3_client_cache();
 
-    // 获取所有 S3 实例配置
-    let instances_value = store
-        .get("s3-instances")
-        .ok_or_else(|| "未找到S3配置".to_string())?;
+    cache
+        .try_get_with(endpoint_url.to_string(), async move {
+            // 获取 store，使用与前端相同的配置文件名
+            let store = app
+                .store("s3-config.json")
+                .map_err(|e| format!("加载S3配置失败: {}", e))?;
 
-    let instances: Vec<S3Config> =
-        serde_json::from_value(instances_value).map_err(|e| format!("解析S3配置失败: {}", e))?;
+            // 获取所有 S3 实例配置
+            let instances_value = store
+                .get("s3-instances")
+                .ok_or_else(|| "未找到S3配置".to_string())?;
 
-    // 查找匹配的配置
-    let config = instances
-        .into_iter()
-        .find(|config| config.endpoint_url == endpoint_url)
-        .ok_or_else(|| format!("未找到endpoint_url为 {} 的S3配置", endpoint_url))?;
+            let instances: Vec<S3Config> =
+                serde_json::from_value(instances_value).map_err(|e| format!("解析S3配置失败: {}", e))?;
 
-    // 创建 AWS 凭证
-    let creds = aws_credential_types::Credentials::new(
-        &config.access_key_id,
-        &config.secret_access_key,
-        None,
-        None,
-        "tauri-app",
-    );
+            // 查找匹配的配置
+            let config = instances
+                .into_iter()
+                .find(|config| config.endpoint_url == endpoint_url)
+                .ok_or_else(|| format!("未找到endpoint_url为 {} 的S3配置", endpoint_url))?;
 
-    // 设置区域
-    let region = aws_config::Region::new(config.region);
+            // 创建 AWS 凭证
+            let creds = aws_credential_types::Credentials::new(
+                &config.access_key_id,
+                &config.secret_access_key,
+                None,
+                None,
+                "tauri-app",
+            );
 
-    // 配置 AWS SDK
-    let config_loader = aws_config::defaults(BehaviorVersion::latest())
-        .region(region)
-        .credentials_provider(creds)
-        .endpoint_url(&config.endpoint_url);
+            // 设置区域
+            let region = aws_config::Region::new(config.region);
 
-    // 创建客户端
-    let aws_config = config_loader.load().await;
-    Ok(Client::new(&aws_config))
+            // 配置 AWS SDK
+            let config_loader = aws_config::defaults(BehaviorVersion::latest())
+                .region(region)
+                .credentials_provider(creds)
+                .endpoint_url(&config.endpoint_url);
+
+            // 创建客户端
+            let aws_config = config_loader.load().await;
+            Ok(Client::new(&aws_config))
+        })
+        .await
+        .map_err(|e: Arc<String>| (*e).clone())
+}
+
+/// 清除所有 S3 客户端缓存
+///
+/// 清空所有已缓存的 S3 客户端，强制下次访问时重新创建。
+/// 通常在配置更新后调用，以确保使用最新的配置。
+#[tauri::command]
+pub fn clear_s3_client_cache() {
+    let cache = get_s3_client_cache();
+    cache.invalidate_all();
 }
 
 /// 列举 S3 存储桶
@@ -141,9 +185,9 @@ pub async fn list_buckets(
     endpoint_url: String,
     app: tauri::AppHandle,
 ) -> Result<Vec<String>, String> {
-    let client = create_authenticated_s3_client(endpoint_url, &app)
+    let client = get_cached_s3_client(&endpoint_url, &app)
         .await
-        .map_err(|e| format!("创建 S3 客户端失败: {}", e))?;
+        .map_err(|e| format!("获取 S3 客户端失败: {}", e))?;
 
     let response = client
         .list_buckets()
@@ -191,9 +235,9 @@ pub async fn list_objects(
     continuation_token: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<ListObjectsResponse, String> {
-    let client = create_authenticated_s3_client(endpoint_url, &app)
+    let client = get_cached_s3_client(&endpoint_url, &app)
         .await
-        .map_err(|e| format!("创建 S3 客户端失败: {}", e))?;
+        .map_err(|e| format!("获取 S3 客户端失败: {}", e))?;
 
     let mut request = client.list_objects_v2().bucket(&bucket);
 
@@ -263,9 +307,9 @@ pub async fn upload_file(
     s3_key: String,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let client = create_authenticated_s3_client(endpoint_url, &app)
+    let client = get_cached_s3_client(&endpoint_url, &app)
         .await
-        .map_err(|e| format!("创建 S3 客户端失败: {}", e))?;
+        .map_err(|e| format!("获取 S3 客户端失败: {}", e))?;
 
     let path = Path::new(&local_path);
     let body = ByteStream::from_path(path)
@@ -319,9 +363,9 @@ pub async fn delete_object(
     s3_key: String,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let client = create_authenticated_s3_client(endpoint_url, &app)
+    let client = get_cached_s3_client(&endpoint_url, &app)
         .await
-        .map_err(|e| format!("创建 S3 客户端失败: {}", e))?;
+        .map_err(|e| format!("获取 S3 客户端失败: {}", e))?;
 
     client
         .delete_object()
@@ -333,4 +377,3 @@ pub async fn delete_object(
 
     Ok(())
 }
-

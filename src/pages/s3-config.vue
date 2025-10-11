@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
 import type { infer as Infer } from 'zod/mini'
+import { invoke } from '@tauri-apps/api/core'
 import { Store } from '@tauri-apps/plugin-store'
 import { cloneDeep, remove } from 'lodash-es'
 import { Globe, Key, MapPin, Plus } from 'lucide-vue-next'
@@ -115,6 +116,11 @@ async function deleteInstance(instance: S3Instance) {
   await saveInstances()
   ElMessage.success('删除成功')
 }
+
+// 页面卸载时清除缓存
+onBeforeUnmount(() => {
+  invoke('clear_s3_client_cache')
+})
 </script>
 
 <template>
