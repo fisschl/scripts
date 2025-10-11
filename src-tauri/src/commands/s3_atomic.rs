@@ -36,8 +36,6 @@ pub struct S3Object {
     pub size: Option<i64>,
     /// 最后修改时间的 ISO 8601 格式字符串
     pub last_modified: Option<String>,
-    /// 对象的 ETag，用于完整性校验
-    pub etag: Option<String>,
 }
 
 /// 创建已认证的 S3 客户端
@@ -207,7 +205,6 @@ pub async fn list_objects(
                     key: key.to_string(),
                     size: obj.size(),
                     last_modified: obj.last_modified().map(|dt| dt.to_string()),
-                    etag: obj.e_tag().map(|s| s.to_string()),
                 });
             }
         }

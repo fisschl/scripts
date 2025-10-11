@@ -27,7 +27,6 @@ interface S3Object {
   key: string
   size?: number
   last_modified?: string
-  etag?: string
 }
 
 // 表单数据类型
