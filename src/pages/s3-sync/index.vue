@@ -8,8 +8,8 @@ import { join } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
 import { merge } from 'lodash-es'
-import { CloudUpload, Database, Folder } from 'lucide-vue-next'
-import { boolean, object, string } from 'zod/mini'
+import { CloudDownload, CloudUpload, Database, Folder } from 'lucide-vue-next'
+import { boolean, literal, object, string, union } from 'zod/mini'
 import S3InstanceSelector from './components/S3InstanceSelector.vue'
 
 /**
@@ -24,8 +24,10 @@ const FormDataZod = object({
   local_dir: string(),
   /** 远程目录路径 */
   remote_dir: string(),
-  /** 是否删除远程多余文件 */
-  delete_remote_extras: boolean(),
+  /** 同步方向 */
+  sync_direction: union([literal('local-to-remote'), literal('remote-to-local')]),
+  /** 是否删除多余文件 */
+  delete_extras: boolean(),
 })
 
 /** 表单数据类型 */
@@ -37,7 +39,8 @@ const form = reactive<FormData>({
   endpoint_url: '',
   local_dir: '',
   remote_dir: '',
-  delete_remote_extras: true, // 默认勾选删除远程多余文件
+  sync_direction: 'local-to-remote', // 默认本地到远程
+  delete_extras: true, // 默认勾选删除多余文件
 })
 
 // 表单引用
@@ -65,7 +68,7 @@ const loading = ref(false)
 const localPaths = reactive<Set<string>>(new Set())
 const remotePaths = reactive<Set<string>>(new Set())
 
-const FORM_STORAGE_KEY = 's3-upload-form'
+const FORM_STORAGE_KEY = 's3-sync-form'
 const store = Store.load('form-data.json')
 
 /**
@@ -206,6 +209,69 @@ async function uploadLocalFiles(
 }
 
 /**
+ * 下载远程文件到本地
+ *
+ * 遍历远程文件路径列表，下载文件到本地目录
+ *
+ * @param localDir - 本地目录路径
+ * @param endpointUrl - S3 服务的终端节点 URL
+ * @param bucket - 存储桶名称
+ * @param prefix - S3 对象键前缀
+ * @throws {Error} 当下载失败时抛出错误
+ */
+async function downloadRemoteFiles(
+  localDir: string,
+  endpointUrl: string,
+  bucket: string,
+  prefix: string,
+): Promise<void> {
+  // 使用数组来遍历，避免在迭代过程中修改集合
+  const pathsToDownload = Array.from(remotePaths)
+
+  for (const relativePath of pathsToDownload) {
+    const localPath = await join(localDir, relativePath)
+    const s3Key = prefix + relativePath
+
+    await invoke('download_file', {
+      endpoint_url: endpointUrl,
+      bucket,
+      localPath,
+      s3Key,
+    })
+
+    // 下载成功后，从远程集合中删除
+    remotePaths.delete(relativePath)
+    // 同时从本地集合中删除（如果存在的话）
+    localPaths.delete(relativePath)
+  }
+}
+
+/**
+ * 删除本地多余文件
+ *
+ * 删除本地集合中剩余的所有文件（这些文件在远程不存在）
+ *
+ * @param localDir - 本地目录路径
+ * @throws {Error} 当删除失败时抛出错误
+ */
+async function deleteLocalExtraFiles(localDir: string): Promise<void> {
+  // 下载完成后，localPaths中剩下的就是需要删除的本地多余文件
+  // 直接遍历并删除所有剩余文件
+  const filesToDelete = Array.from(localPaths)
+
+  for (const relativePath of filesToDelete) {
+    const localPath = await join(localDir, relativePath)
+
+    await invoke('remove_path', {
+      path: localPath,
+    })
+
+    // 删除成功后，从本地集合中移除
+    localPaths.delete(relativePath)
+  }
+}
+
+/**
  * 删除远程多余文件
  *
  * 删除远程集合中剩余的所有文件（这些文件在本地不存在）
@@ -254,18 +320,16 @@ async function selectLocalDir() {
 }
 
 /**
- * 开始上传流程
+ * 开始同步流程
  *
- * 执行完整的 S3 同步上传流程：
+ * 执行完整的 S3 同步流程：
  * 1. 验证表单并保存配置
- * 2. 扫描本地文件更新响应式集合
- * 3. 获取远程文件更新响应式集合
- * 4. 上传本地文件
- * 5. 可选：删除远程多余文件
+ * 2. 扫描本地和远程文件更新响应式集合
+ * 3. 根据同步方向执行相应的同步操作
  *
- * @throws {Error} 当上传过程中出现错误时抛出异常
+ * @throws {Error} 当同步过程中出现错误时抛出异常
  */
-async function startUpload() {
+async function startSync() {
   await formRef.value?.validate()
 
   // 保存表单数据（包含所有信息）
@@ -283,38 +347,66 @@ async function startUpload() {
     localPaths.clear()
     remotePaths.clear()
 
-    // 2. 获取本地文件路径列表并追加到响应式集合
+    // 2. 获取本地和远程文件路径列表
     await updateLocalFilePaths(form.local_dir)
-
-    // 3. 获取远程文件路径列表并追加到响应式集合
     await updateRemoteFilePaths(form.endpoint_url, form.bucket, remotePrefix)
 
-    // 4. 检查是否需要操作
-    if (localPaths.size === 0 && remotePaths.size === 0) {
-      ElMessage.success('本地和远程都没有文件，无需操作')
-      return
-    }
+    // 3. 根据同步方向执行不同的逻辑
+    switch (form.sync_direction) {
+      case 'local-to-remote':
+        // 本地到远程同步
+        if (localPaths.size === 0 && remotePaths.size === 0) {
+          ElMessage.success('本地和远程都没有文件，无需操作')
+          return
+        }
 
-    if (localPaths.size === 0 && !form.delete_remote_extras) {
-      ElMessage.info('本地没有文件，且未启用删除远程文件，无需操作')
-      return
-    }
+        if (localPaths.size === 0 && !form.delete_extras) {
+          ElMessage.info('本地没有文件，且未启用删除远程文件，无需操作')
+          return
+        }
 
-    // 5. 上传本地文件
-    if (localPaths.size > 0) {
-      await uploadLocalFiles(form.local_dir, form.endpoint_url, form.bucket, remotePrefix)
-    }
+        // 上传本地文件
+        if (localPaths.size > 0) {
+          await uploadLocalFiles(form.local_dir, form.endpoint_url, form.bucket, remotePrefix)
+        }
 
-    // 6. 删除远程多余文件（如果启用）
-    if (form.delete_remote_extras && remotePaths.size > 0) {
-      await deleteRemoteExtraFiles(form.endpoint_url, form.bucket, remotePrefix)
-    }
+        // 删除远程多余文件（如果启用）
+        if (form.delete_extras && remotePaths.size > 0) {
+          await deleteRemoteExtraFiles(form.endpoint_url, form.bucket, remotePrefix)
+        }
 
-    ElMessage.success('S3 上传完成')
+        ElMessage.success('S3 同步完成（本地 → 远程）')
+        break
+
+      case 'remote-to-local':
+        // 远程到本地同步
+        if (localPaths.size === 0 && remotePaths.size === 0) {
+          ElMessage.success('本地和远程都没有文件，无需操作')
+          return
+        }
+
+        if (remotePaths.size === 0 && !form.delete_extras) {
+          ElMessage.info('远程没有文件，且未启用删除本地文件，无需操作')
+          return
+        }
+
+        // 下载远程文件
+        if (remotePaths.size > 0) {
+          await downloadRemoteFiles(form.local_dir, form.endpoint_url, form.bucket, remotePrefix)
+        }
+
+        // 删除本地多余文件（如果启用）
+        if (form.delete_extras && localPaths.size > 0) {
+          await deleteLocalExtraFiles(form.local_dir)
+        }
+
+        ElMessage.success('S3 同步完成（远程 → 本地）')
+        break
+    }
   }
   catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error)
-    ElMessage.error(`S3 上传失败: ${errorMsg}`)
+    ElMessage.error(`S3 同步失败: ${errorMsg}`)
   }
   finally {
     loading.value = false
@@ -330,7 +422,7 @@ async function startUpload() {
       :rules="rules"
       label-position="top"
       label-suffix="："
-      @submit.prevent="startUpload"
+      @submit.prevent="startSync"
     >
       <ElFormItem label="S3 实例" prop="endpoint_url">
         <S3InstanceSelector
@@ -353,7 +445,16 @@ async function startUpload() {
         </ElInput>
       </ElFormItem>
 
-      <ElDivider />
+      <ElFormItem label="同步方向" prop="sync_direction">
+        <ElRadioGroup v-model="form.sync_direction">
+          <ElRadio value="local-to-remote">
+            本地 → 远程
+          </ElRadio>
+          <ElRadio value="remote-to-local">
+            远程 → 本地
+          </ElRadio>
+        </ElRadioGroup>
+      </ElFormItem>
 
       <ElFormItem label="本地目录" prop="local_dir">
         <ElInput
@@ -382,19 +483,42 @@ async function startUpload() {
         </ElInput>
       </ElFormItem>
 
-      <ElFormItem prop="delete_remote_extras">
-        <ElCheckbox v-model="form.delete_remote_extras">
-          删除远程多余文件
+      <ElFormItem prop="delete_extras">
+        <ElCheckbox v-model="form.delete_extras">
+          删除多余文件
         </ElCheckbox>
       </ElFormItem>
 
       <div v-if="!loading" class="mt-4">
         <ElButton type="primary" native-type="submit">
-          <CloudUpload :size="18" class="mr-2" />
-          开始上传
+          <template v-if="form.sync_direction === 'local-to-remote'">
+            <CloudUpload :size="18" class="mr-2" />
+            开始同步（本地 → 远程）
+          </template>
+          <template v-else-if="form.sync_direction === 'remote-to-local'">
+            <CloudDownload :size="18" class="mr-2" />
+            开始同步（远程 → 本地）
+          </template>
         </ElButton>
       </div>
     </ElForm>
+
+    <ElRow v-if="localPaths.size > 0 || remotePaths.size > 0" class="my-6">
+      <ElCol :span="12">
+        <ElStatistic
+          class="text-center"
+          title="本地文件数量"
+          :value="localPaths.size"
+        />
+      </ElCol>
+      <ElCol :span="12">
+        <ElStatistic
+          class="text-center"
+          title="远程文件数量"
+          :value="remotePaths.size"
+        />
+      </ElCol>
+    </ElRow>
   </div>
 </template>
 

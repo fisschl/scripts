@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CloudUpload, Copy, GitBranch, HardDrive, Hash } from 'lucide-vue-next'
+import { ArrowUpDown, Copy, GitBranch, HardDrive, Hash, RefreshCw } from 'lucide-vue-next'
 
 /**
  * 获取当前路由信息
@@ -36,10 +36,10 @@ const examples = computed(() => {
       isActive: route.path.startsWith('/s3-config'),
     },
     {
-      name: 'S3 上传',
-      path: '/s3-upload',
-      icon: markRaw(CloudUpload),
-      isActive: route.path.startsWith('/s3-upload'),
+      name: 'S3 同步',
+      path: '/s3-sync',
+      icon: markRaw(RefreshCw),
+      isActive: route.path.startsWith('/s3-sync'),
     },
   ]
 })
