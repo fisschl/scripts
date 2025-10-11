@@ -8,6 +8,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { merge } from 'lodash-es'
 import { Copy, Folder } from 'lucide-vue-next'
 import { array, object, string } from 'zod/mini'
+import { getFileExtension } from '@/pages/file-copy/components/file-operations'
 
 /**
  * 保存的表单数据 Zod 模式定义
@@ -116,12 +117,8 @@ async function scanAndCopy(dirPath: string, allowedExtensions: string[]): Promis
       continue
     }
     // 检查文件扩展名
-    const extIndex = entry.path.lastIndexOf('.')
-    if (extIndex === -1)
-      continue
-
-    const ext = entry.path.slice(extIndex + 1).toLowerCase()
-    if (!allowedExtensions.includes(ext))
+    const ext = getFileExtension(entry.path)
+    if (!ext || !allowedExtensions.includes(ext))
       continue
 
     currentFile.value = entry.path
@@ -193,8 +190,7 @@ async function copySingleFile(
   })
 
   // 2. 获取文件扩展名
-  const lastDotIndex = sourceFile.lastIndexOf('.')
-  const extension = lastDotIndex > -1 ? sourceFile.substring(lastDotIndex + 1) : undefined
+  const extension = getFileExtension(sourceFile) || undefined
 
   // 3. 构建目标文件路径（哈希值 + 原始扩展名）
   const targetFileName = extension ? `${hash}.${extension}` : hash

@@ -17,6 +17,32 @@ export interface FileInfo {
 }
 
 /**
+ * 获取文件扩展名
+ *
+ * 从文件路径中提取扩展名，返回小写形式
+ * 注意：返回的是**不带点**的扩展名（例如：返回 "jpg" 而不是 ".jpg"）
+ * 如果文件没有扩展名则返回空字符串
+ *
+ * @param filePath - 文件路径
+ * @returns string 返回文件扩展名（小写，不带点），如果没有扩展名则返回空字符串
+ */
+export function getFileExtension(filePath: string): string {
+  const lastDotIndex = filePath.lastIndexOf('.')
+  if (lastDotIndex === -1 || lastDotIndex === filePath.length - 1) {
+    return ''
+  }
+
+  const lastSlashIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+
+  // 确保最后一个点是在最后一个斜杠之后
+  if (lastDotIndex < lastSlashIndex) {
+    return ''
+  }
+
+  return filePath.slice(lastDotIndex + 1).toLowerCase()
+}
+
+/**
  * 递归列举目录中的所有文件
  *
  * 递归扫描指定目录及其所有子目录，返回所有文件的完整信息列表。
