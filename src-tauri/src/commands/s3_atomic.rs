@@ -38,6 +38,19 @@ pub struct S3Object {
     pub last_modified: Option<String>,
 }
 
+/// S3 对象列表响应
+///
+/// 包含分页信息的 S3 对象列表响应结构
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListObjectsResponse {
+    /// 对象列表
+    pub objects: Vec<S3Object>,
+    /// 是否还有更多对象
+    pub is_truncated: bool,
+    /// 用于获取下一页的令牌
+    pub next_continuation_token: Option<String>,
+}
+
 /// 创建已认证的 S3 客户端
 ///
 /// 根据终端节点 URL 从应用存储中查找 S3 配置，并创建经过认证的客户端。
@@ -147,76 +160,76 @@ pub async fn list_buckets(
     Ok(buckets)
 }
 
-/// 列举 S3 对象
+/// 列举 S3 对象（分页）
 ///
-/// 获取指定存储桶中匹配前缀的所有对象。支持分页获取大量对象。
+/// 获取指定存储桶中匹配前缀的对象列表，支持分页获取。
 ///
 /// # 参数
 ///
 /// * `endpoint_url` - S3 服务的终端节点 URL
 /// * `bucket` - 存储桶名称
 /// * `prefix` - 对象键前缀过滤器，可选
+/// * `continuation_token` - 用于获取下一页的令牌，可选
 /// * `app` - Tauri 应用句柄，用于获取 S3 配置
 ///
 /// # 返回值
 ///
-/// * `Ok(Vec<S3Object>)` - 成功时返回对象元数据列表
+/// * `Ok(ListObjectsResponse)` - 成功时返回包含分页信息的对象列表
 /// * `Err(String)` - 失败时返回错误描述
 ///
 /// # 行为
 ///
-/// * 自动处理分页，获取所有匹配的对象
+/// * 每次调用返回最多 1000 个对象（S3 API 限制）
 /// * 返回的对象按字典序排列
-/// * 包含完整的对象元数据信息
+/// * 包含完整的对象元数据信息和分页令牌
+/// * 前端需要根据 `is_truncated` 和 `next_continuation_token` 来决定是否继续获取
 #[tauri::command]
 pub async fn list_objects(
     endpoint_url: String,
     bucket: String,
     prefix: Option<String>,
+    continuation_token: Option<String>,
     app: tauri::AppHandle,
-) -> Result<Vec<S3Object>, String> {
+) -> Result<ListObjectsResponse, String> {
     let client = create_authenticated_s3_client(endpoint_url, &app)
         .await
         .map_err(|e| format!("创建 S3 客户端失败: {}", e))?;
 
+    let mut request = client.list_objects_v2().bucket(&bucket);
+
+    if let Some(prefix) = &prefix {
+        request = request.prefix(prefix);
+    }
+
+    if let Some(token) = continuation_token {
+        request = request.continuation_token(token);
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("列举对象失败: {}", e))?;
+
     let mut objects = Vec::new();
-    let mut continuation_token = None;
-
-    loop {
-        let mut request = client.list_objects_v2().bucket(&bucket);
-
-        if let Some(prefix) = &prefix {
-            request = request.prefix(prefix);
-        }
-
-        if let Some(token) = continuation_token {
-            request = request.continuation_token(token);
-        }
-
-        let response = request
-            .send()
-            .await
-            .map_err(|e| format!("列举对象失败: {}", e))?;
-
-        let contents = response.contents();
-        for obj in contents {
-            if let Some(key) = obj.key() {
-                objects.push(S3Object {
-                    key: key.to_string(),
-                    size: obj.size(),
-                    last_modified: obj.last_modified().map(|dt| dt.to_string()),
-                });
-            }
-        }
-
-        if response.is_truncated() == Some(true) {
-            continuation_token = response.next_continuation_token().map(|s| s.to_string());
-        } else {
-            break;
+    let contents = response.contents();
+    for obj in contents {
+        if let Some(key) = obj.key() {
+            objects.push(S3Object {
+                key: key.to_string(),
+                size: obj.size(),
+                last_modified: obj.last_modified().map(|dt| dt.to_string()),
+            });
         }
     }
 
-    Ok(objects)
+    let is_truncated = response.is_truncated() == Some(true);
+    let next_continuation_token = response.next_continuation_token().map(|s| s.to_string());
+
+    Ok(ListObjectsResponse {
+        objects,
+        is_truncated,
+        next_continuation_token,
+    })
 }
 
 /// 上传文件到 S3
@@ -321,55 +334,3 @@ pub async fn delete_object(
     Ok(())
 }
 
-/// 检查 S3 对象是否存在
-///
-/// 通过发送 HEAD 请求检查指定对象是否存在，不会下载对象内容。
-///
-/// # 参数
-///
-/// * `endpoint_url` - S3 服务的终端节点 URL
-/// * `bucket` - 存储桶名称
-/// * `s3_key` - 要检查的对象键名
-/// * `app` - Tauri 应用句柄，用于获取 S3 配置
-///
-/// # 返回值
-///
-/// * `Ok(true)` - 对象存在
-/// * `Ok(false)` - 对象不存在
-/// * `Err(String)` - 检查过程中的错误描述
-///
-/// # 行为
-///
-/// * 只获取对象元数据，不传输对象内容
-/// * 比 GET 请求更高效和节省带宽
-/// * 需要 对象读取权限
-/// * 网络错误会导致请求失败，而非返回对象不存在
-#[tauri::command]
-pub async fn object_exists(
-    endpoint_url: String,
-    bucket: String,
-    s3_key: String,
-    app: tauri::AppHandle,
-) -> Result<bool, String> {
-    let client = create_authenticated_s3_client(endpoint_url, &app)
-        .await
-        .map_err(|e| format!("创建 S3 客户端失败: {}", e))?;
-
-    match client
-        .head_object()
-        .bucket(&bucket)
-        .key(&s3_key)
-        .send()
-        .await
-    {
-        Ok(_) => Ok(true),
-        Err(e) => {
-            let service_err = e.into_service_error();
-            if service_err.is_not_found() {
-                Ok(false)
-            } else {
-                Err(format!("检查对象存在性失败: {}", service_err))
-            }
-        }
-    }
-}

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
 import { merge } from 'lodash-es'
@@ -166,23 +165,56 @@ async function getLocalFiles(dir: string): Promise<Map<string, LocalFile>> {
   return localFiles
 }
 
-// 获取远程文件列表
-async function getRemoteFiles(endpointUrl: string, bucket: string, prefix: string): Promise<Map<string, S3Object>> {
+// S3 对象列表响应类型
+interface ListObjectsResponse {
+  objects: S3Object[]
+  is_truncated: boolean
+  next_continuation_token?: string
+}
+
+// 获取远程文件列表（分页获取全部）
+async function getRemoteFiles(
+  endpointUrl: string,
+  bucket: string,
+  prefix: string,
+  progressCallback?: (count: number) => void,
+): Promise<Map<string, S3Object>> {
   const remoteFiles = new Map<string, S3Object>()
+  let continuationToken: string | undefined
+  let totalObjects = 0
 
   try {
-    const objects = await invoke<S3Object[]>('list_objects', {
-      endpoint_url: endpointUrl,
-      bucket,
-      prefix,
-    })
+    do {
+      const response = await invoke<ListObjectsResponse>('list_objects', {
+        endpoint_url: endpointUrl,
+        bucket,
+        prefix,
+        continuation_token: continuationToken,
+      })
 
-    for (const obj of objects) {
-      const relativeKey = obj.key.replace(prefix, '')
-      if (relativeKey) {
-        remoteFiles.set(relativeKey, obj)
+      // 处理当前页的对象
+      for (const obj of response.objects) {
+        const relativeKey = obj.key.replace(prefix, '')
+        if (relativeKey) {
+          remoteFiles.set(relativeKey, obj)
+        }
       }
-    }
+
+      totalObjects += response.objects.length
+
+      // 调用进度回调
+      if (progressCallback) {
+        progressCallback(totalObjects)
+      }
+
+      // 检查是否还有更多数据
+      continuationToken = response.next_continuation_token
+
+      // 如果还有更多数据，添加短暂延迟避免API限制
+      if (continuationToken) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+    } while (continuationToken)
   }
   catch (error) {
     throw new Error(`获取远程文件列表失败: ${error}`)
@@ -308,7 +340,14 @@ async function startUpload() {
 
     // 2. 获取远程文件列表
     progressMessages.value.push('获取远程文件列表...')
-    const remoteFiles = await getRemoteFiles(form.s3_instance.endpoint_url, form.s3_config.bucket, remotePrefix)
+    const remoteFiles = await getRemoteFiles(
+      form.s3_instance.endpoint_url,
+      form.s3_config.bucket,
+      remotePrefix,
+      (count) => {
+        progressMessages.value[progressMessages.value.length - 1] = `获取远程文件列表... 已获取 ${count} 个对象`
+      },
+    )
     progressMessages.value.push(`发现远程文件: ${remoteFiles.size} 个`)
 
     // 3. 生成同步操作队列
@@ -338,24 +377,6 @@ async function startUpload() {
     loading.value = false
   }
 }
-
-const effects: (() => unknown)[] = []
-
-onMounted(async () => {
-  effects.push(
-    await listen('s3-sync-progress', (event) => {
-      const { payload } = event
-      if (typeof payload !== 'string')
-        return
-      progressMessages.value.push(payload)
-    }),
-  )
-})
-
-onBeforeUnmount(() => {
-  effects.forEach(effect => effect())
-  effects.length = 0
-})
 </script>
 
 <template>
