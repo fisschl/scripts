@@ -4,15 +4,30 @@ import { invoke } from '@tauri-apps/api/core'
 import { join, tempDir } from '@tauri-apps/api/path'
 import { ExternalLink, GitBranch, Link } from 'lucide-vue-next'
 
-// 类型定义
+/**
+ * 命令执行结果类型
+ */
 interface CommandResult {
+  /** 退出代码 */
   exit_code: number | null
+  /** 标准输出 */
   stdout: string
+  /** 标准错误输出 */
   stderr: string
 }
 
+/**
+ * 表单数据类型
+ */
+interface RepoCloneForm {
+  /** 源仓库 URL */
+  sourceUrl: string
+  /** 目标仓库 URL */
+  targetUrl: string
+}
+
 // 表单数据
-const form = reactive({
+const form = reactive<RepoCloneForm>({
   sourceUrl: '',
   targetUrl: '',
 })
@@ -32,11 +47,14 @@ const rules = reactive<FormRules>({
   ],
 })
 
+/** 加载状态 */
 const loading = ref(false)
+/** 进度抽屉显示状态 */
 const drawerVisible = ref(false)
+/** 当前执行步骤 */
 const currentStep = ref(0)
 
-// 步骤定义
+/** 克隆步骤定义 */
 const steps = [
   '验证源仓库',
   '克隆仓库',
@@ -46,6 +64,16 @@ const steps = [
   '操作完成',
 ]
 
+/**
+ * 开始仓库克隆流程
+ *
+ * 执行完整的仓库镜像克隆和推送流程：
+ * 1. 验证源仓库可访问性
+ * 2. 镜像克隆到临时目录
+ * 3. 配置目标远程地址
+ * 4. 推送到目标仓库
+ * 5. 清理临时文件
+ */
 async function startClone() {
   await formRef.value?.validate()
 

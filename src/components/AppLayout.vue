@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { CloudUpload, Copy, GitBranch, HardDrive, Hash } from 'lucide-vue-next'
 
+/**
+ * 获取当前路由信息
+ */
 const route = useRoute()
 
+/**
+ * 导航菜单项配置
+ */
 const examples = computed(() => {
   return [
     {
@@ -38,6 +44,9 @@ const examples = computed(() => {
   ]
 })
 
+/**
+ * 获取当前激活的菜单项
+ */
 const activeExample = computed(() => {
   return examples.value.find(example => example.isActive)
 })

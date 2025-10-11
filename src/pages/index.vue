@@ -1,4 +1,9 @@
 <script setup lang="ts">
+/**
+ * 首页组件
+ *
+ * 显示应用首页，包含应用介绍和导航提示
+ */
 </script>
 
 <template>

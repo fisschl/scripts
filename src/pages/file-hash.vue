@@ -3,9 +3,16 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { File, Key } from 'lucide-vue-next'
 
+/** 选择的文件路径 */
 const filePath = ref('')
+/** 文件哈希计算结果 */
 const hashResult = ref('')
 
+/**
+ * 选择文件并计算哈希值
+ *
+ * 打开文件选择对话框，用户选择文件后自动计算并显示文件的哈希值。
+ */
 async function selectFile() {
   const selected = await open({
     multiple: false,

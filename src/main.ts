@@ -7,11 +7,20 @@ import '@fontsource-variable/fira-code'
 import './style.css'
 import './assets/MiSans/mi-sans.css'
 
+/**
+ * Vue 应用程序入口点
+ *
+ * 创建并挂载 Vue 应用实例，配置路由系统，并导入全局样式。
+ */
+
+// 从环境变量获取基础 URL
 const { BASE_URL } = import.meta.env
 
+// 创建 Vue Router 实例
 const router = createRouter({
   history: createWebHistory(BASE_URL),
   routes,
 })
 
+// 创建并挂载 Vue 应用
 createApp(App).use(router).mount('#app')

@@ -10,12 +10,19 @@ import { Copy, Folder } from 'lucide-vue-next'
 import { array, object, string } from 'zod/mini'
 import FileListItem from './components/FileListItem.vue'
 
+/**
+ * 保存的表单数据 Zod 模式定义
+ */
 const SavedFormDataZod = object({
+  /** 源目录路径 */
   sourcePath: string(),
+  /** 目标目录路径 */
   targetPath: string(),
+  /** 文件扩展名列表 */
   extensions: array(string()),
 })
 
+/** 表单数据类型 */
 interface FormData extends Infer<typeof SavedFormDataZod> {}
 
 // 表单数据
@@ -46,12 +53,16 @@ const rules = reactive<FormRules>({
   ],
 })
 
+/** 进度抽屉显示状态 */
 const showProgressDrawer = ref(false)
 
+/** 表单存储键名 */
 const FORM_STORAGE_KEY = 'file-copy-form'
 const store = Store.load('form-data.json')
 
-// 初始化时加载保存的表单数据
+/**
+ * 初始化时加载保存的表单数据
+ */
 store.then(async (store) => {
   const result = SavedFormDataZod.safeParse(await store.get(FORM_STORAGE_KEY))
   if (!result.success)
@@ -62,6 +73,9 @@ store.then(async (store) => {
   formRef.value?.clearValidate()
 })
 
+/**
+ * 选择源目录
+ */
 async function selectSourcePath() {
   const selected = await open({
     multiple: false,
@@ -72,6 +86,9 @@ async function selectSourcePath() {
   form.sourcePath = selected
 }
 
+/**
+ * 选择目标目录
+ */
 async function selectTargetPath() {
   const selected = await open({
     multiple: false,
@@ -82,10 +99,21 @@ async function selectTargetPath() {
   form.targetPath = selected
 }
 
+/** 加载状态 */
 const loading = ref(false)
 
+/** 待处理文件列表 */
 const files = reactive<FileItem[]>([])
 
+/**
+ * 开始文件复制流程
+ *
+ * 执行完整的文件复制流程：
+ * 1. 递归扫描源目录
+ * 2. 根据扩展名筛选文件
+ * 3. 逐个复制文件到目标目录
+ * 4. 使用哈希值生成唯一文件名避免冲突
+ */
 async function startCopy() {
   await formRef.value?.validate()
 

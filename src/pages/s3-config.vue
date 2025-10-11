@@ -1,23 +1,10 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
-import type { infer as Infer } from 'zod/mini'
+import type { S3Instance } from './s3-upload/components/instances'
 import { invoke } from '@tauri-apps/api/core'
-import { Store } from '@tauri-apps/plugin-store'
 import { cloneDeep, remove } from 'lodash-es'
 import { Globe, Key, MapPin, Plus } from 'lucide-vue-next'
-import { array, object, string } from 'zod/mini'
-
-// S3 实例 Zod 模式定义
-const S3InstanceZod = object({
-  endpoint_url: string(),
-  access_key_id: string(),
-  secret_access_key: string(),
-  region: string(),
-})
-
-const S3InstancesZod = array(S3InstanceZod)
-
-interface S3Instance extends Infer<typeof S3InstanceZod> {}
+import { loadS3Instances, S3InstanceZod, saveS3Instances } from './s3-upload/components/instances'
 
 // 校验规则
 const rules = reactive<FormRules>({
@@ -42,27 +29,15 @@ const rules = reactive<FormRules>({
 const instances = ref<S3Instance[]>([])
 const showFormDialog = ref(false)
 
-const STORE_KEY = 's3-instances'
-const store = Store.load('s3-config.json')
-
 // 加载 S3 实例列表
 async function loadInstances() {
-  const data = await store.then(store => store.get(STORE_KEY))
-  const result = S3InstancesZod.safeParse(data)
-  if (!result.success) {
-    instances.value = []
-    return
-  }
-  instances.value = result.data
+  instances.value = await loadS3Instances()
 }
 loadInstances()
 
 // 保存 S3 实例列表
 async function saveInstances() {
-  await store.then(async (store) => {
-    await store.set(STORE_KEY, instances.value)
-    await store.save()
-  })
+  await saveS3Instances(instances.value)
 }
 
 // 打开新增表单
