@@ -116,12 +116,8 @@ async function startClone() {
       path: tempPath,
     })
 
-    // 步骤6：操作完成
-    currentStep.value = '✓ 仓库克隆完成！'
-
     // 清空步骤说明
     currentStep.value = ''
-
     ElMessage.success('仓库镜像和推送完成')
   }
   catch (error) {

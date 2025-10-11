@@ -7,7 +7,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
 import { merge } from 'lodash-es'
 import { Copy, Folder } from 'lucide-vue-next'
-import { array, object, string } from 'zod/mini'
+import { array, boolean, object, string } from 'zod/mini'
 import { getFileExtension } from '@/pages/file-copy/components/file-operations'
 
 /**
@@ -20,6 +20,8 @@ const SavedFormDataZod = object({
   targetPath: string(),
   /** 文件扩展名列表 */
   extensions: array(string()),
+  /** 是否在复制后删除源文件（剪切模式） */
+  moveAfterCopy: boolean(),
 })
 
 /** 表单数据类型 */
@@ -30,6 +32,7 @@ const form = reactive<FormData>({
   sourcePath: '',
   targetPath: '',
   extensions: ['mp4', 'webm', 'm4v'], // 只保留浏览器原生支持的格式
+  moveAfterCopy: false, // 默认为复制模式
 })
 
 // 表单引用
@@ -156,12 +159,12 @@ async function startCopy() {
     // 开始串行化扫描和复制
     await scanAndCopy(sourcePath, allowedExtensions)
 
-    ElMessage.success(`文件复制完成！`)
+    ElMessage.success(`文件${form.moveAfterCopy ? '剪切' : '复制'}完成！`)
     currentFile.value = ''
   }
   catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error)
-    ElMessage.error(`文件复制失败: ${errorMsg}`)
+    ElMessage.error(`文件${form.moveAfterCopy ? '剪切' : '复制'}失败: ${errorMsg}`)
   }
   finally {
     loading.value = false
@@ -179,6 +182,7 @@ const loadingText = computed(() => {
  *
  * 复制后的文件使用 Blake3 哈希算法生成唯一文件名，保留原始扩展名
  * 如果目标目录已存在同名文件，则跳过该文件
+ * 如果启用了剪切模式，复制成功后删除源文件
  */
 async function copySingleFile(
   sourceFile: string,
@@ -202,6 +206,13 @@ async function copySingleFile(
     to: targetPath,
     overwrite: false,
   })
+
+  // 5. 如果启用了剪切模式，复制成功后删除源文件
+  if (form.moveAfterCopy) {
+    await invoke('remove_path', {
+      path: sourceFile,
+    })
+  }
 }
 </script>
 
@@ -248,6 +259,12 @@ async function copySingleFile(
           placeholder="请输入扩展名"
           @keydown.enter.prevent
         />
+      </ElFormItem>
+
+      <ElFormItem prop="moveAfterCopy">
+        <ElCheckbox v-model="form.moveAfterCopy">
+          复制后删除源文件（剪切）
+        </ElCheckbox>
       </ElFormItem>
 
       <div v-if="!loading" class="mt-4">
