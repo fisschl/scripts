@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
-import type { S3Instance } from './s3-upload/components/instances'
+import type { S3Instance } from './s3-sync/components/instances'
 import { invoke } from '@tauri-apps/api/core'
 import { cloneDeep, remove } from 'lodash-es'
 import { Globe, Key, MapPin, Plus } from 'lucide-vue-next'
-import { loadS3Instances, S3InstanceZod, saveS3Instances } from './s3-upload/components/instances'
+import { loadS3Instances, S3InstanceZod, saveS3Instances } from './s3-sync/components/instances'
 
 // 校验规则
 const rules = reactive<FormRules>({
@@ -68,7 +68,7 @@ async function resetForm() {
 // 提交表单
 async function submitForm() {
   await formRef.value?.validate()
-  const data = instances.value.find(item => item.endpoint_url === form.value.endpoint_url)
+  const data = instances.value.find((item: S3Instance) => item.endpoint_url === form.value.endpoint_url)
   if (data) {
     Object.assign(data, form.value)
     return

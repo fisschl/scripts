@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowUpDown, Copy, GitBranch, HardDrive, Hash, RefreshCw } from 'lucide-vue-next'
+import { Copy, GitBranch, HardDrive, Hash, RefreshCw } from 'lucide-vue-next'
 
 /**
  * 获取当前路由信息
