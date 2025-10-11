@@ -176,7 +176,7 @@ async function copySingleFile(
   targetDir: string,
 ): Promise<void> {
   // 1. 调用通用哈希指令计算文件哈希值
-  const hash = await invoke<string>('calculate_file_hash', {
+  const hash = await invoke<string>('file_hash', {
     filePath: sourceFile,
   })
 

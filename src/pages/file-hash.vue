@@ -23,7 +23,7 @@ async function selectFile() {
   filePath.value = selected
   if (!filePath.value)
     return
-  const result = await invoke('calculate_file_hash', { filePath: filePath.value })
+  const result = await invoke('file_hash', { filePath: filePath.value })
   if (typeof result !== 'string')
     return
   hashResult.value = result

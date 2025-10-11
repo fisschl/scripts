@@ -2,10 +2,9 @@
 //!
 //! 提供前端可调用的文件系统操作命令
 
-use crate::utils::hash;
 use serde::Serialize;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tauri::command;
 
 /// 文件系统条目信息
@@ -202,7 +201,39 @@ pub fn remove_path(path: String) -> Result<(), String> {
 /// * 哈希值不包含路径信息，仅基于文件内容
 #[command]
 pub fn file_hash(file_path: String) -> Result<String, String> {
-    let path = PathBuf::from(file_path);
+    use base32::{Alphabet, encode};
+    use blake3::{Hash, Hasher};
+    use std::fs::File;
+    use std::io::{BufReader, Read};
+    
+    let path = std::path::PathBuf::from(file_path);
+    
+    // 创建Blake3哈希器
+    let mut hasher = Hasher::new();
 
-    hash::calculate_file_hash(&path).map_err(|e| format!("计算文件哈希值失败: {}", e))
+    // 打开文件
+    let file = File::open(&path).map_err(|e| format!("打开文件失败: {}", e))?;
+    let mut reader = BufReader::new(file);
+
+    // 定义缓冲区（8KB，适合大多数文件读取场景）
+    let mut buffer = [0; 8192];
+
+    // 分块读取文件并更新哈希
+    // 使用循环读取直到文件结束，避免一次性加载大文件到内存
+    while let Ok(bytes_read) = reader.read(&mut buffer) {
+        if bytes_read == 0 {
+            break; // 文件读取完毕
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    // 计算最终哈希值并转换为字节数组
+    let hash: Hash = hasher.finalize();
+    let hash_bytes: [u8; 32] = hash.into();
+
+    // 使用base32-crockford编码哈希值并转换为小写
+    // base32-crockford编码具有更好的可读性和纠错能力
+    let encoded = encode(Alphabet::Crockford, &hash_bytes).to_lowercase();
+
+    Ok(encoded)
 }
