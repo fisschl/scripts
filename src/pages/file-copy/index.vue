@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
 import type { infer as Infer } from 'zod/mini'
-import type { FileInfo, FileItem } from './components/types'
+import type { FileItem } from './components/types'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
 import { merge, pull } from 'lodash-es'
 import { Copy, Folder } from 'lucide-vue-next'
 import { array, object, string } from 'zod/mini'
+import { listFilesRecursive } from '@/pages/file-copy/components/file-operations'
 import FileListItem from './components/FileListItem.vue'
 
 /**
@@ -138,13 +139,12 @@ async function startCopy() {
     files.length = 0
     // 2. 筛选匹配扩展名的文件
     const allowedExtensions = extensions.map(ext => ext.toLowerCase())
-    const filteredFiles = allFiles.filter(file =>
-      allowedExtensions.some(ext => file.toLowerCase().endsWith(`.${ext}`)),
-    )
-
-    filteredFiles.forEach((filePath) => {
-      files.push({ path: filePath, status: 'pending' })
+    allFiles.filter((file) => {
+      return allowedExtensions.some(ext => file.toLowerCase().endsWith(`.${ext}`))
     })
+      .forEach((filePath) => {
+        files.push({ path: filePath, status: 'pending' })
+      })
 
     for (const item of files) {
       item.status = 'processing'
@@ -163,31 +163,6 @@ async function startCopy() {
   finally {
     loading.value = false
   }
-}
-
-/**
- * 递归列举目录中的所有文件
- */
-async function listFilesRecursive(dirPath: string): Promise<string[]> {
-  const result: string[] = []
-
-  const files = await invoke<FileInfo[]>('list_directory', {
-    path: dirPath,
-  })
-
-  for (const file of files) {
-    if (file.is_dir) {
-      // 递归处理子目录
-      const subFiles = await listFilesRecursive(file.path)
-      result.push(...subFiles)
-    }
-    else {
-      // 添加文件路径
-      result.push(file.path)
-    }
-  }
-
-  return result
 }
 
 /**

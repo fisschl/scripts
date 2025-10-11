@@ -9,6 +9,7 @@ import { merge } from 'lodash-es'
 import { CloudUpload, Database, Folder } from 'lucide-vue-next'
 import { object, string } from 'zod/mini'
 import LogViewer from '@/components/LogViewer.vue'
+import { listFilesRecursiveWithInfo } from '@/pages/file-copy/components/file-operations'
 import { listAllRemoteFiles } from './components/s3-files'
 import S3InstanceSelector from './components/S3InstanceSelector.vue'
 
@@ -103,33 +104,23 @@ store.then(async (store) => {
  * @throws {Error} 当目录扫描失败时抛出错误
  */
 async function getLocalFiles(dir: string): Promise<Map<string, LocalFile>> {
-  const localFiles = new Map<string, LocalFile>()
-
   try {
-    const result = await invoke<string[]>('list_directory', { path: dir })
+    const fileInfoMap = await listFilesRecursiveWithInfo(dir)
+    const localFiles = new Map<string, LocalFile>()
 
-    for (const filePath of result) {
-      try {
-        const stats = await invoke<any>('get_file_stats', { path: filePath })
-        if (stats.isFile) {
-          const relativePath = filePath.replace(dir + (dir.endsWith('/') || dir.endsWith('\\') ? '' : '/'), '').replace(/\\/g, '/')
-          localFiles.set(relativePath, {
-            path: filePath,
-            size: stats.size,
-            lastModified: new Date(stats.lastModified),
-          })
-        }
-      }
-      catch (error) {
-        console.warn(`获取文件信息失败: ${filePath}`, error)
-      }
+    for (const [relativePath, fileInfo] of fileInfoMap) {
+      localFiles.set(relativePath, {
+        path: fileInfo.path,
+        size: fileInfo.size,
+        lastModified: new Date(fileInfo.last_modified),
+      })
     }
+
+    return localFiles
   }
   catch (error) {
     throw new Error(`扫描本地目录失败: ${error}`)
   }
-
-  return localFiles
 }
 
 /**

@@ -2,11 +2,11 @@
 //!
 //! 提供前端可调用的文件系统操作命令
 
+use crate::utils::hash;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::command;
-use crate::utils::hash;
 
 /// 文件系统条目信息
 ///
@@ -19,8 +19,9 @@ pub struct FileInfo {
     pub is_dir: bool,
     /// 文件大小（字节），目录通常为 0
     pub size: u64,
+    /// 最后修改时间（ISO 8601 格式）
+    pub last_modified: String,
 }
-
 
 /// 列举目录内容
 ///
@@ -64,10 +65,23 @@ pub fn list_directory(path: String) -> Result<Vec<FileInfo>, String> {
             .metadata()
             .map_err(|e| format!("获取文件元数据失败: {}", e))?;
 
+        let last_modified = metadata
+            .modified()
+            .map_err(|e| format!("获取文件修改时间失败: {}", e))?
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| format!("转换文件修改时间失败: {}", e))?
+            .as_millis();
+
+        // 转换为 DateTime 并格式化为 ISO 8601
+        let dt = chrono::DateTime::from_timestamp_millis(last_modified as i64)
+            .ok_or_else(|| "转换时间戳失败".to_string())?
+            .to_rfc3339();
+
         let file_info = FileInfo {
             path: entry_path.to_string_lossy().to_string(),
             is_dir: metadata.is_dir(),
             size: metadata.len(),
+            last_modified: dt,
         };
 
         files.push(file_info);
