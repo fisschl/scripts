@@ -1,5 +1,3 @@
-import { invoke } from '@tauri-apps/api/core'
-
 /**
  * 文件系统条目信息
  *
@@ -40,35 +38,4 @@ export function getFileExtension(filePath: string): string {
   }
 
   return filePath.slice(lastDotIndex + 1).toLowerCase()
-}
-
-/**
- * 递归列举目录中的所有文件
- *
- * 递归扫描指定目录及其所有子目录，返回所有文件的完整信息列表。
- * 过滤掉目录，只返回文件信息。
- *
- * @param dirPath - 要扫描的根目录路径
- * @returns Promise<FileInfo[]> 返回所有文件的完整信息列表
- *
- * @throws {Error} 当目录扫描失败时抛出异常
- */
-export async function listFilesRecursive(dirPath: string): Promise<FileInfo[]> {
-  const result: FileInfo[] = []
-
-  const files = await invoke<FileInfo[]>('list_directory', { path: dirPath })
-
-  for (const file of files) {
-    if (file.is_dir) {
-      // 递归处理子目录
-      const subFiles = await listFilesRecursive(file.path)
-      result.push(...subFiles)
-    }
-    else {
-      // 添加文件信息
-      result.push(file)
-    }
-  }
-
-  return result
 }

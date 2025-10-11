@@ -4,13 +4,12 @@ import type { infer as Infer } from 'zod/mini'
 import type { S3Object } from './components/s3-files'
 import type { FileInfo } from '@/pages/file-copy/components/file-operations'
 import { invoke } from '@tauri-apps/api/core'
+import { join } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
 import { merge } from 'lodash-es'
 import { CloudUpload, Database, Folder } from 'lucide-vue-next'
-import { object, string } from 'zod/mini'
-import { listFilesRecursive } from '@/pages/file-copy/components/file-operations'
-import { listRemoteFilesRecursive } from './components/s3-files'
+import { boolean, object, string } from 'zod/mini'
 import S3InstanceSelector from './components/S3InstanceSelector.vue'
 
 /**
@@ -25,17 +24,12 @@ const FormDataZod = object({
   local_dir: string(),
   /** 远程目录路径 */
   remote_dir: string(),
+  /** 是否删除远程多余文件 */
+  delete_remote_extras: boolean(),
 })
 
 /** 表单数据类型 */
 interface FormData extends Infer<typeof FormDataZod> {}
-
-// 同步操作类型
-interface SyncOperation {
-  type: 'upload' | 'delete'
-  localPath?: string
-  s3Key: string
-}
 
 // 表单数据
 const form = reactive<FormData>({
@@ -43,6 +37,7 @@ const form = reactive<FormData>({
   endpoint_url: '',
   local_dir: '',
   remote_dir: '',
+  delete_remote_extras: true, // 默认勾选删除远程多余文件
 })
 
 // 表单引用
@@ -65,17 +60,10 @@ const rules = reactive<FormRules>({
 })
 
 const loading = ref(false)
-const drawerVisible = ref(false)
-const currentStep = ref(0)
-const uploadProgress = ref(0)
 
-// 步骤定义
-const steps = [
-  { title: '准备上传', description: '验证配置和扫描文件' },
-  { title: '扫描文件', description: '分析本地和远程文件' },
-  { title: '上传文件', description: '同步文件到S3存储桶' },
-  { title: '完成', description: '上传操作完成' },
-]
+// 响应式路径集合
+const localPaths = reactive<Set<string>>(new Set())
+const remotePaths = reactive<Set<string>>(new Set())
 
 const FORM_STORAGE_KEY = 's3-upload-form'
 const store = Store.load('form-data.json')
@@ -96,143 +84,157 @@ store.then(async (store) => {
 })
 
 /**
- * 获取本地文件列表
+ * 获取本地文件路径列表
  *
- * 递归扫描指定目录下的所有文件，返回相对路径到文件信息的映射。
+ * 递归扫描指定目录下的所有文件，追加到响应式集合。
  * 自动处理路径分隔符转换，并过滤出文件类型（排除目录）。
  *
  * @param dir - 要扫描的本地目录路径
- * @returns Promise<Map<string, FileInfo>> 返回相对路径到文件信息的映射
- *
- * @throws {Error} 当目录扫描失败时抛出错误
  */
-async function getLocalFiles(dir: string): Promise<Map<string, FileInfo>> {
-  const localFiles = new Map<string, FileInfo>()
+async function updateLocalFilePaths(dir: string): Promise<void> {
+  // 递归扫描目录的内部函数
+  async function scanDirectory(dirPath: string): Promise<void> {
+    const files = await invoke<FileInfo[]>('list_directory', { path: dirPath })
 
-  try {
-    // 获取所有文件的完整信息
-    const allFiles = await listFilesRecursive(dir)
+    for (const file of files) {
+      if (file.is_dir) {
+        // 递归处理子目录
+        await scanDirectory(file.path)
+      }
+      else {
+        // 移除开头的路径分隔符并统一为正斜杠
+        const relativePath = file.path
+          .replace(dir, '')
+          .replace(/^[\\/]+/, '')
+          .replace(/[\\/]+/g, '/')
 
-    for (const fileInfo of allFiles) {
-      // 移除开头的路径分隔符并统一为正斜杠
-      const relativePath = fileInfo.path
-        .replace(dir, '')
-        .replace(/^[\\/]+/, '')
-        .replace(/[\\/]+/g, '/')
-
-      localFiles.set(relativePath, fileInfo)
+        localPaths.add(relativePath)
+      }
     }
+  }
 
-    return localFiles
-  }
-  catch (error) {
-    throw new Error(`扫描本地目录失败: ${error}`)
-  }
+  await scanDirectory(dir)
 }
 
 /**
- * 生成同步操作队列
+ * 获取远程文件路径列表
  *
- * 比较本地文件和远程文件，生成需要执行的同步操作。
- * 采用覆盖式同步策略：本地存在的文件总是上传，远程存在但本地不存在的文件将被删除。
+ * 递归获取远程S3存储桶中的所有文件，追加到响应式集合。
  *
- * @param localFiles - 本地文件映射（相对路径 -> 文件信息）
- * @param remoteFiles - 远程文件映射（相对路径 -> S3对象信息）
- * @param prefix - S3 对象键前缀
- * @returns SyncOperation[] 返回同步操作队列
- */
-function generateSyncOperations(
-  localFiles: Map<string, FileInfo>,
-  remoteFiles: Map<string, S3Object>,
-  prefix: string,
-): SyncOperation[] {
-  const operations: SyncOperation[] = []
-
-  // 1. 检查需要上传的文件（本地存在，远程不存在或需要覆盖）
-  for (const [relativePath, localFile] of localFiles) {
-    const remoteFile = remoteFiles.get(relativePath)
-    const s3Key = prefix + relativePath
-
-    if (!remoteFile) {
-      // 远程不存在，需要上传
-      operations.push({
-        type: 'upload',
-        localPath: localFile.path,
-        s3Key,
-      })
-    }
-    else {
-      // 远程存在，可以选择比较文件大小或修改时间来决定是否覆盖
-      // 这里简单实现为总是覆盖（覆盖式同步）
-      operations.push({
-        type: 'upload',
-        localPath: localFile.path,
-        s3Key,
-      })
-    }
-  }
-
-  // 2. 检查需要删除的远程文件（远程存在，本地不存在）
-  for (const [relativePath] of remoteFiles) {
-    if (!localFiles.has(relativePath)) {
-      operations.push({
-        type: 'delete',
-        s3Key: prefix + relativePath,
-      })
-    }
-  }
-
-  return operations
-}
-
-/**
- * 执行同步操作
- *
- * 按顺序执行同步操作队列中的所有操作，支持上传和删除操作。
- * 实时更新进度信息，遇到错误时立即停止并抛出异常。
- *
- * @param operations - 同步操作队列
  * @param endpointUrl - S3 服务的终端节点 URL
  * @param bucket - 存储桶名称
- *
- * @throws {Error} 当同步操作失败时抛出错误
+ * @param prefix - S3 对象键前缀
  */
-async function executeSyncOperations(
-  operations: SyncOperation[],
+async function updateRemoteFilePaths(
   endpointUrl: string,
   bucket: string,
-) {
-  currentStep.value = 2 // 切换到上传步骤
+  prefix: string,
+): Promise<void> {
+  let continuationToken: string | undefined
 
-  for (let i = 0; i < operations.length; i++) {
-    const operation = operations[i]
-    if (!operation)
-      continue
+  do {
+    // 调用后端API获取一页对象
+    const response = await invoke<{
+      objects: S3Object[]
+      is_truncated: boolean
+      next_continuation_token?: string
+    }>('list_objects', {
+      endpoint_url: endpointUrl,
+      bucket,
+      prefix,
+      continuation_token: continuationToken,
+    })
 
-    try {
-      if (operation.type === 'upload' && operation.localPath) {
-        await invoke('upload_file', {
-          endpoint_url: endpointUrl,
-          bucket,
-          localPath: operation.localPath,
-          s3Key: operation.s3Key,
-        })
+    // 转换为相对路径并添加到响应式集合
+    for (const obj of response.objects) {
+      const relativePath = obj.key
+        .replace(prefix, '')
+        .replace(/^\/+/, '') // 移除开头的斜杠（S3路径只使用正斜杠）
+
+      if (relativePath) {
+        remotePaths.add(relativePath)
       }
-      else if (operation.type === 'delete') {
-        await invoke('delete_object', {
-          endpoint_url: endpointUrl,
-          bucket,
-          s3Key: operation.s3Key,
-        })
-      }
+    }
 
-      // 更新进度
-      uploadProgress.value = Math.round(((i + 1) / operations.length) * 100)
+    // 检查是否还有更多数据
+    continuationToken = response.next_continuation_token
+
+    // 如果还有更多数据，添加短暂延迟
+    if (continuationToken) {
+      await new Promise(resolve => setTimeout(resolve, 100))
     }
-    catch (error) {
-      const errorMsg = `${operation.type === 'upload' ? '上传' : '删除'}失败: ${operation.s3Key} - ${error}`
-      throw new Error(errorMsg)
-    }
+  } while (continuationToken)
+}
+
+/**
+ * 上传本地文件到S3
+ *
+ * 遍历本地文件路径列表，上传文件到S3存储桶
+ *
+ * @param localDir - 本地目录路径
+ * @param endpointUrl - S3 服务的终端节点 URL
+ * @param bucket - 存储桶名称
+ * @param prefix - S3 对象键前缀
+ * @throws {Error} 当上传失败时抛出错误
+ */
+async function uploadLocalFiles(
+  localDir: string,
+  endpointUrl: string,
+  bucket: string,
+  prefix: string,
+): Promise<void> {
+  // 使用数组来遍历，避免在迭代过程中修改集合
+  const pathsToUpload = Array.from(localPaths)
+
+  for (const relativePath of pathsToUpload) {
+    // 使用Tauri的join函数进行跨平台路径规范化拼接
+    const localPath = await join(localDir, relativePath)
+    const s3Key = prefix + relativePath
+
+    await invoke('upload_file', {
+      endpoint_url: endpointUrl,
+      bucket,
+      localPath,
+      s3Key,
+    })
+
+    // 上传成功后，从本地集合中删除
+    localPaths.delete(relativePath)
+    // 同时从远程集合中删除（如果存在的话）
+    remotePaths.delete(relativePath)
+  }
+}
+
+/**
+ * 删除远程多余文件
+ *
+ * 删除远程集合中剩余的所有文件（这些文件在本地不存在）
+ *
+ * @param endpointUrl - S3 服务的终端节点 URL
+ * @param bucket - 存储桶名称
+ * @param prefix - S3 对象键前缀
+ * @throws {Error} 当删除失败时抛出错误
+ */
+async function deleteRemoteExtraFiles(
+  endpointUrl: string,
+  bucket: string,
+  prefix: string,
+): Promise<void> {
+  // 上传完成后，remotePaths中剩下的就是需要删除的多余文件
+  // 直接遍历并删除所有剩余文件
+  const filesToDelete = Array.from(remotePaths)
+
+  for (const relativePath of filesToDelete) {
+    const s3Key = prefix + relativePath
+
+    await invoke('delete_object', {
+      endpoint_url: endpointUrl,
+      bucket,
+      s3Key,
+    })
+
+    // 删除成功后，从远程集合中移除
+    remotePaths.delete(relativePath)
   }
 }
 
@@ -256,10 +258,10 @@ async function selectLocalDir() {
  *
  * 执行完整的 S3 同步上传流程：
  * 1. 验证表单并保存配置
- * 2. 扫描本地文件
- * 3. 获取远程文件列表
- * 4. 生成同步操作队列
- * 5. 执行同步操作
+ * 2. 扫描本地文件更新响应式集合
+ * 3. 获取远程文件更新响应式集合
+ * 4. 上传本地文件
+ * 5. 可选：删除远程多余文件
  *
  * @throws {Error} 当上传过程中出现错误时抛出异常
  */
@@ -273,47 +275,41 @@ async function startUpload() {
   })
 
   loading.value = true
-  drawerVisible.value = true
-  currentStep.value = 0
-  uploadProgress.value = 0
 
   try {
     const remotePrefix = (`${form.remote_dir}/`).replace(/^[\\/]+/, '').replace(/[\\/]+/g, '/')
 
-    currentStep.value = 1 // 切换到扫描文件步骤
+    // 1. 清空响应式集合
+    localPaths.clear()
+    remotePaths.clear()
 
-    // 1. 获取本地文件列表
-    const localFiles = await getLocalFiles(form.local_dir)
+    // 2. 获取本地文件路径列表并追加到响应式集合
+    await updateLocalFilePaths(form.local_dir)
 
-    // 2. 获取远程文件列表
-    const remoteObjects = await listRemoteFilesRecursive(
-      form.endpoint_url,
-      form.bucket,
-      remotePrefix,
-    )
+    // 3. 获取远程文件路径列表并追加到响应式集合
+    await updateRemoteFilePaths(form.endpoint_url, form.bucket, remotePrefix)
 
-    // 3. 转换为相对路径映射
-    const remoteFiles = new Map<string, S3Object>()
-    for (const obj of remoteObjects) {
-      const relativeKey = obj.key.replace(remotePrefix, '')
-      if (relativeKey) {
-        remoteFiles.set(relativeKey, obj)
-      }
-    }
-
-    // 4. 生成同步操作队列
-    const operations = generateSyncOperations(localFiles, remoteFiles, remotePrefix)
-
-    if (operations.length === 0) {
-      currentStep.value = 3 // 直接跳到完成步骤
-      ElMessage.success('本地和远程文件完全一致，无需同步')
+    // 4. 检查是否需要操作
+    if (localPaths.size === 0 && remotePaths.size === 0) {
+      ElMessage.success('本地和远程都没有文件，无需操作')
       return
     }
 
-    // 5. 执行同步操作
-    await executeSyncOperations(operations, form.endpoint_url, form.bucket)
+    if (localPaths.size === 0 && !form.delete_remote_extras) {
+      ElMessage.info('本地没有文件，且未启用删除远程文件，无需操作')
+      return
+    }
 
-    currentStep.value = 3 // 完成步骤
+    // 5. 上传本地文件
+    if (localPaths.size > 0) {
+      await uploadLocalFiles(form.local_dir, form.endpoint_url, form.bucket, remotePrefix)
+    }
+
+    // 6. 删除远程多余文件（如果启用）
+    if (form.delete_remote_extras && remotePaths.size > 0) {
+      await deleteRemoteExtraFiles(form.endpoint_url, form.bucket, remotePrefix)
+    }
+
     ElMessage.success('S3 上传完成')
   }
   catch (error: unknown) {
@@ -386,6 +382,12 @@ async function startUpload() {
         </ElInput>
       </ElFormItem>
 
+      <ElFormItem prop="delete_remote_extras">
+        <ElCheckbox v-model="form.delete_remote_extras">
+          删除远程多余文件
+        </ElCheckbox>
+      </ElFormItem>
+
       <div v-if="!loading" class="mt-4">
         <ElButton type="primary" native-type="submit">
           <CloudUpload :size="18" class="mr-2" />
@@ -393,48 +395,6 @@ async function startUpload() {
         </ElButton>
       </div>
     </ElForm>
-
-    <!-- 抽屉组件 -->
-    <ElDrawer
-      v-model="drawerVisible"
-      title="S3 上传进度"
-      direction="rtl"
-      size="400px"
-      :close-on-click-modal="false"
-      :close-on-press-escape="false"
-    >
-      <div class="p-4">
-        <!-- 步骤条 -->
-        <ElSteps :active="currentStep" direction="vertical" finish-status="success">
-          <ElStep
-            v-for="(step, index) in steps"
-            :key="index"
-            :title="step.title"
-            :description="step.description"
-          />
-        </ElSteps>
-
-        <!-- 上传进度条 -->
-        <div v-if="currentStep === 2" class="mt-6">
-          <div class="mb-2 text-sm text-gray-600">
-            上传进度
-          </div>
-          <ElProgress :percentage="uploadProgress" :stroke-width="8" />
-        </div>
-
-        <!-- 完成状态 -->
-        <div v-if="currentStep === 3" class="mt-6 text-center">
-          <ElResult
-            icon="success"
-            title="上传完成"
-            sub-title="所有文件已成功上传到 S3 存储桶"
-          />
-          <ElButton type="primary" class="mt-4" @click="drawerVisible = false">
-            关闭
-          </ElButton>
-        </div>
-      </div>
-    </ElDrawer>
   </div>
 </template>
 
