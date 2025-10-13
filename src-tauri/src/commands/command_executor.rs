@@ -2,6 +2,7 @@
 //!
 //! 提供前端可调用的通用命令执行接口
 
+use crate::utils::error::CommandError;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
@@ -9,7 +10,7 @@ use std::process::Command;
 ///
 /// 包含已执行命令的完整输出信息和状态
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CommandResult {
+pub struct CommandRunnerResult {
     /// 进程退出码，None 表示进程被信号终止
     pub exit_code: Option<i32>,
     /// 标准输出的完整内容
@@ -35,7 +36,7 @@ pub struct CommandResult {
 ///   - `exit_code` - 进程退出码（None 表示进程异常终止）
 ///   - `stdout` - 标准输出的字符串形式
 ///   - `stderr` - 标准错误的字符串形式
-/// * `Err(String)` - 失败时返回错误信息字符串
+/// * `Err(CommandError)` - 失败时返回错误信息
 ///
 /// # 行为
 ///
@@ -54,21 +55,18 @@ pub fn execute_command_sync(
     command: String,
     args: Vec<String>,
     working_dir: String,
-) -> Result<CommandResult, String> {
+) -> Result<CommandRunnerResult, CommandError> {
     let mut cmd = Command::new(&command);
     cmd.args(&args);
     cmd.current_dir(&working_dir);
 
-    match cmd.output() {
-        Ok(output) => {
-            let result = CommandResult {
-                exit_code: output.status.code(),
-                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-            };
+    let output = cmd.output().map_err(CommandError::from)?;
 
-            Ok(result)
-        }
-        Err(e) => Err(e.to_string()),
-    }
+    let result = CommandRunnerResult {
+        exit_code: output.status.code(),
+        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+    };
+
+    Ok(result)
 }

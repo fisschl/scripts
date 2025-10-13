@@ -2,6 +2,7 @@
 //!
 //! 提供基础的 S3 操作命令，供前端组合使用
 
+use crate::utils::error::CommandError;
 use anyhow::Result;
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::Client;
@@ -90,7 +91,7 @@ fn get_s3_client_cache() -> &'static Cache<String, Client> {
 /// # 返回值
 ///
 /// * `Ok(Client)` - 成功获取或创建的 S3 客户端实例
-/// * `Err(String)` - 配置查找失败或客户端创建失败
+/// * `Err(CommandError)` - 配置查找失败或客户端创建失败
 ///
 /// # 错误
 ///
@@ -101,29 +102,26 @@ fn get_s3_client_cache() -> &'static Cache<String, Client> {
 pub async fn get_cached_s3_client(
     endpoint_url: &str,
     app: &tauri::AppHandle,
-) -> Result<Client, String> {
+) -> Result<Client, CommandError> {
     let cache = get_s3_client_cache();
 
-    cache
+    let client = cache
         .try_get_with(endpoint_url.to_string(), async move {
             // 获取 store，使用与前端相同的配置文件名
-            let store = app
-                .store("s3-config.json")
-                .map_err(|e| format!("加载S3配置失败: {}", e))?;
+            let store = app.store("s3-config.json")?;
 
             // 获取所有 S3 实例配置
             let instances_value = store
                 .get("s3-instances")
-                .ok_or_else(|| "未找到S3配置".to_string())?;
+                .ok_or_else(|| anyhow::anyhow!("未找到S3配置"))?;
 
-            let instances: Vec<S3Config> =
-                serde_json::from_value(instances_value).map_err(|e| format!("解析S3配置失败: {}", e))?;
+            let instances: Vec<S3Config> = serde_json::from_value(instances_value)?;
 
             // 查找匹配的配置
             let config = instances
                 .into_iter()
                 .find(|config| config.endpoint_url == endpoint_url)
-                .ok_or_else(|| format!("未找到endpoint_url为 {} 的S3配置", endpoint_url))?;
+                .ok_or_else(|| anyhow::anyhow!("未找到endpoint_url为 {} 的S3配置", endpoint_url))?;
 
             // 创建 AWS 凭证
             let creds = aws_credential_types::Credentials::new(
@@ -148,7 +146,9 @@ pub async fn get_cached_s3_client(
             Ok(Client::new(&aws_config))
         })
         .await
-        .map_err(|e: Arc<String>| (*e).clone())
+        .map_err(|e: Arc<anyhow::Error>| anyhow::anyhow!("{}", e))?;
+
+    Ok(client)
 }
 
 /// 清除所有 S3 客户端缓存
@@ -173,7 +173,7 @@ pub fn clear_s3_client_cache() {
 /// # 返回值
 ///
 /// * `Ok(Vec<String>)` - 成功时返回存储桶名称列表
-/// * `Err(String)` - 失败时返回错误描述
+/// * `Err(CommandError)` - 失败时返回错误描述
 ///
 /// # 错误
 ///
@@ -184,16 +184,14 @@ pub fn clear_s3_client_cache() {
 pub async fn list_s3_buckets(
     endpoint_url: String,
     app: tauri::AppHandle,
-) -> Result<Vec<String>, String> {
-    let client = get_cached_s3_client(&endpoint_url, &app)
-        .await
-        .map_err(|e| format!("获取 S3 客户端失败: {}", e))?;
+) -> Result<Vec<String>, CommandError> {
+    let client = get_cached_s3_client(&endpoint_url, &app).await?;
 
     let response = client
         .list_buckets()
         .send()
         .await
-        .map_err(|e| format!("列举存储桶失败: {}", e))?;
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     let buckets = response
         .buckets()
@@ -219,7 +217,7 @@ pub async fn list_s3_buckets(
 /// # 返回值
 ///
 /// * `Ok(ListObjectsResponse)` - 成功时返回包含分页信息的对象列表
-/// * `Err(String)` - 失败时返回错误描述
+/// * `Err(CommandError)` - 失败时返回错误描述
 ///
 /// # 行为
 ///
@@ -234,10 +232,8 @@ pub async fn list_s3_objects(
     prefix: Option<String>,
     continuation_token: Option<String>,
     app: tauri::AppHandle,
-) -> Result<ListObjectsResponse, String> {
-    let client = get_cached_s3_client(&endpoint_url, &app)
-        .await
-        .map_err(|e| format!("获取 S3 客户端失败: {}", e))?;
+) -> Result<ListObjectsResponse, CommandError> {
+    let client = get_cached_s3_client(&endpoint_url, &app).await?;
 
     let mut request = client.list_objects_v2().bucket(&bucket);
 
@@ -249,10 +245,7 @@ pub async fn list_s3_objects(
         request = request.continuation_token(token);
     }
 
-    let response = request
-        .send()
-        .await
-        .map_err(|e| format!("列举对象失败: {}", e))?;
+    let response = request.send().await.map_err(|e| anyhow::anyhow!(e))?;
 
     let mut objects = Vec::new();
     let contents = response.contents();
@@ -291,7 +284,7 @@ pub async fn list_s3_objects(
 /// # 返回值
 ///
 /// * `Ok(())` - 文件上传成功
-/// * `Err(String)` - 上传失败时的错误描述
+/// * `Err(CommandError)` - 上传失败时的错误描述
 ///
 /// # 行为
 ///
@@ -306,15 +299,13 @@ pub async fn upload_file_to_s3(
     local_path: String,
     s3_key: String,
     app: tauri::AppHandle,
-) -> Result<(), String> {
-    let client = get_cached_s3_client(&endpoint_url, &app)
-        .await
-        .map_err(|e| format!("获取 S3 客户端失败: {}", e))?;
+) -> Result<(), CommandError> {
+    let client = get_cached_s3_client(&endpoint_url, &app).await?;
 
     let path = Path::new(&local_path);
     let body = ByteStream::from_path(path)
         .await
-        .map_err(|e| format!("读取文件失败: {}", e))?;
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     // 根据文件扩展名自动检测 MIME 类型
     let mime_type = mime_guess::from_path(path)
@@ -329,7 +320,7 @@ pub async fn upload_file_to_s3(
         .body(body)
         .send()
         .await
-        .map_err(|e| format!("上传文件失败: {}", e))?;
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }
@@ -348,7 +339,7 @@ pub async fn upload_file_to_s3(
 /// # 返回值
 ///
 /// * `Ok(())` - 对象删除成功
-/// * `Err(String)` - 删除失败时的错误描述
+/// * `Err(CommandError)` - 删除失败时的错误描述
 ///
 /// # 行为
 ///
@@ -362,10 +353,8 @@ pub async fn delete_s3_object(
     bucket: String,
     s3_key: String,
     app: tauri::AppHandle,
-) -> Result<(), String> {
-    let client = get_cached_s3_client(&endpoint_url, &app)
-        .await
-        .map_err(|e| format!("获取 S3 客户端失败: {}", e))?;
+) -> Result<(), CommandError> {
+    let client = get_cached_s3_client(&endpoint_url, &app).await?;
 
     client
         .delete_object()
@@ -373,7 +362,7 @@ pub async fn delete_s3_object(
         .key(&s3_key)
         .send()
         .await
-        .map_err(|e| format!("删除对象失败: {}", e))?;
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }
@@ -393,7 +382,7 @@ pub async fn delete_s3_object(
 /// # 返回值
 ///
 /// * `Ok(())` - 文件下载成功
-/// * `Err(String)` - 下载失败时的错误描述
+/// * `Err(CommandError)` - 下载失败时的错误描述
 ///
 /// # 行为
 ///
@@ -408,10 +397,8 @@ pub async fn download_file_from_s3(
     local_path: String,
     s3_key: String,
     app: tauri::AppHandle,
-) -> Result<(), String> {
-    let client = get_cached_s3_client(&endpoint_url, &app)
-        .await
-        .map_err(|e| format!("获取 S3 客户端失败: {}", e))?;
+) -> Result<(), CommandError> {
+    let client = get_cached_s3_client(&endpoint_url, &app).await?;
 
     // 获取 S3 对象
     let response = client
@@ -420,25 +407,19 @@ pub async fn download_file_from_s3(
         .key(&s3_key)
         .send()
         .await
-        .map_err(|e| format!("获取 S3 对象失败: {}", e))?;
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     // 确保本地目录存在
     let path = Path::new(&local_path);
     if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| format!("创建本地目录失败: {}", e))?;
+        tokio::fs::create_dir_all(parent).await?;
     }
 
     // 将响应体转换为异步读取器并直接复制到文件
     let mut body = response.body.into_async_read();
-    let mut file = tokio::fs::File::create(path)
-        .await
-        .map_err(|e| format!("创建本地文件失败: {}", e))?;
+    let mut file = tokio::fs::File::create(path).await?;
 
-    tokio::io::copy(&mut body, &mut file)
-        .await
-        .map_err(|e| format!("写入文件失败: {}", e))?;
+    tokio::io::copy(&mut body, &mut file).await?;
 
     Ok(())
 }

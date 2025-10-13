@@ -2,6 +2,8 @@
 //!
 //! 提供前端可调用的文件系统操作命令
 
+use crate::utils::error::CommandError;
+use anyhow::Result;
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
@@ -34,7 +36,7 @@ pub struct FileInfo {
 /// # 返回值
 ///
 /// * `Ok(Vec<FileInfo>)` - 成功时返回目录条目信息列表
-/// * `Err(String)` - 失败时返回错误描述
+/// * `Err(CommandError)` - 失败时返回错误描述
 ///
 /// # 错误
 ///
@@ -42,38 +44,35 @@ pub struct FileInfo {
 /// * 当路径不是目录时返回错误
 /// * 当没有读取权限时返回错误
 #[command]
-pub fn list_directory(path: String) -> Result<Vec<FileInfo>, String> {
+pub fn list_directory(path: String) -> Result<Vec<FileInfo>, CommandError> {
     let path = Path::new(&path);
 
     if !path.exists() {
-        return Err("目录不存在".to_string());
+        return Err(CommandError::from(anyhow::anyhow!("目录不存在")));
     }
 
     if !path.is_dir() {
-        return Err("路径不是目录".to_string());
+        return Err(CommandError::from(anyhow::anyhow!("路径不是目录")));
     }
 
     let mut files = Vec::new();
 
-    let entries = fs::read_dir(path).map_err(|e| format!("读取目录失败: {}", e))?;
+    let entries = fs::read_dir(path)?;
 
     for entry in entries {
-        let entry = entry.map_err(|e| format!("遍历目录条目失败: {}", e))?;
+        let entry = entry?;
         let entry_path = entry.path();
-        let metadata = entry
-            .metadata()
-            .map_err(|e| format!("获取文件元数据失败: {}", e))?;
+        let metadata = entry.metadata()?;
 
         let last_modified = metadata
-            .modified()
-            .map_err(|e| format!("获取文件修改时间失败: {}", e))?
+            .modified()?
             .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| format!("转换文件修改时间失败: {}", e))?
+            .map_err(|e| anyhow::anyhow!(e))?
             .as_millis();
 
         // 转换为 DateTime 并格式化为 ISO 8601
         let dt = chrono::DateTime::from_timestamp_millis(last_modified as i64)
-            .ok_or_else(|| "转换时间戳失败".to_string())?
+            .ok_or_else(|| anyhow::anyhow!("转换时间戳失败"))?
             .to_rfc3339();
 
         let file_info = FileInfo {
@@ -103,7 +102,7 @@ pub fn list_directory(path: String) -> Result<Vec<FileInfo>, String> {
 /// # 返回值
 ///
 /// * `Ok(())` - 文件复制成功
-/// * `Err(String)` - 复制失败时的错误描述
+/// * `Err(CommandError)` - 复制失败时的错误描述
 ///
 /// # 行为
 ///
@@ -112,14 +111,14 @@ pub fn list_directory(path: String) -> Result<Vec<FileInfo>, String> {
 /// * 当目标目录不存在时，自动创建目录结构
 /// * 当目标文件已存在且 `overwrite` 为 true 时，覆盖目标文件
 #[command]
-pub fn copy_file(from: String, to: String, overwrite: Option<bool>) -> Result<(), String> {
+pub fn copy_file(from: String, to: String, overwrite: Option<bool>) -> Result<(), CommandError> {
     let from = Path::new(&from);
     let to = Path::new(&to);
     let overwrite = overwrite.unwrap_or(false);
 
     // 检查源文件是否存在
     if !from.exists() {
-        return Err("源文件不存在".to_string());
+        return Err(CommandError::from(anyhow::anyhow!("源文件不存在")));
     }
 
     // 检查目标文件是否已存在，如果已存在且不允许覆盖则直接返回成功
@@ -130,12 +129,12 @@ pub fn copy_file(from: String, to: String, overwrite: Option<bool>) -> Result<()
     // 确保目标目录存在
     if let Some(parent) = to.parent() {
         if !parent.exists() {
-            fs::create_dir_all(parent).map_err(|e| format!("创建目标目录失败: {}", e))?;
+            fs::create_dir_all(parent)?;
         }
     }
 
     // 复制文件
-    fs::copy(from, to).map_err(|e| format!("复制文件失败: {}", e))?;
+    fs::copy(from, to)?;
 
     Ok(())
 }
@@ -152,7 +151,7 @@ pub fn copy_file(from: String, to: String, overwrite: Option<bool>) -> Result<()
 /// # 返回值
 ///
 /// * `Ok(())` - 删除操作成功
-/// * `Err(String)` - 删除失败时的错误描述
+/// * `Err(CommandError)` - 删除失败时的错误描述
 ///
 /// # 行为
 ///
@@ -161,7 +160,7 @@ pub fn copy_file(from: String, to: String, overwrite: Option<bool>) -> Result<()
 /// * 当路径是目录时，递归删除目录及其所有内容
 /// * 当没有删除权限时返回错误
 #[command]
-pub fn remove_path(path: String) -> Result<(), String> {
+pub fn remove_path(path: String) -> Result<(), CommandError> {
     let path = Path::new(&path);
 
     if !path.exists() {
@@ -170,10 +169,10 @@ pub fn remove_path(path: String) -> Result<(), String> {
 
     if path.is_file() {
         // 删除文件
-        fs::remove_file(path).map_err(|e| format!("删除文件失败: {}", e))?;
+        fs::remove_file(path)?;
     } else if path.is_dir() {
         // 递归删除目录
-        fs::remove_dir_all(path).map_err(|e| format!("删除目录失败: {}", e))?;
+        fs::remove_dir_all(path)?;
     }
 
     Ok(())
@@ -191,7 +190,7 @@ pub fn remove_path(path: String) -> Result<(), String> {
 /// # 返回值
 ///
 /// * `Ok(String)` - 成功时返回 base32-crockford 编码的哈希值
-/// * `Err(String)` - 失败时返回错误描述
+/// * `Err(CommandError)` - 失败时返回错误描述
 ///
 /// # 行为
 ///
@@ -200,27 +199,28 @@ pub fn remove_path(path: String) -> Result<(), String> {
 /// * 对于大文件，计算时间可能与文件大小成正比
 /// * 哈希值不包含路径信息，仅基于文件内容
 #[command]
-pub fn file_hash(file_path: String) -> Result<String, String> {
+pub async fn file_hash(file_path: String) -> Result<String, CommandError> {
     use base32::{Alphabet, encode};
     use blake3::{Hash, Hasher};
-    use std::fs::File;
-    use std::io::{BufReader, Read};
-    
+    use tokio::fs::File;
+    use tokio::io::{AsyncReadExt, BufReader};
+
     let path = std::path::PathBuf::from(file_path);
-    
+
     // 创建Blake3哈希器
     let mut hasher = Hasher::new();
 
     // 打开文件
-    let file = File::open(&path).map_err(|e| format!("打开文件失败: {}", e))?;
+    let file = File::open(&path).await?;
     let mut reader = BufReader::new(file);
 
     // 定义缓冲区（8KB，适合大多数文件读取场景）
     let mut buffer = [0; 8192];
 
     // 分块读取文件并更新哈希
-    // 使用循环读取直到文件结束，避免一次性加载大文件到内存
-    while let Ok(bytes_read) = reader.read(&mut buffer) {
+    // 使用异步读取，避免阻塞线程
+    loop {
+        let bytes_read = reader.read(&mut buffer).await?;
         if bytes_read == 0 {
             break; // 文件读取完毕
         }
