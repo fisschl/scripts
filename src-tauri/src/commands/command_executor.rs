@@ -2,7 +2,6 @@
 //!
 //! 提供前端可调用的通用命令执行接口
 
-use crate::utils::error::CommandError;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
@@ -55,12 +54,12 @@ pub fn execute_command_sync(
     command: String,
     args: Vec<String>,
     working_dir: String,
-) -> Result<CommandRunnerResult, CommandError> {
+) -> Result<CommandRunnerResult, String> {
     let mut cmd = Command::new(&command);
     cmd.args(&args);
     cmd.current_dir(&working_dir);
 
-    let output = cmd.output().map_err(CommandError::from)?;
+    let output = cmd.output().map_err(|e| format!("命令执行失败: {}", e))?;
 
     let result = CommandRunnerResult {
         exit_code: output.status.code(),
