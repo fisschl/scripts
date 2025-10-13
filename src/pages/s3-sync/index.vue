@@ -141,7 +141,7 @@ async function updateRemoteFilePaths(
       objects: S3Object[]
       is_truncated: boolean
       next_continuation_token?: string
-    }>('list_objects', {
+    }>('list_s3_objects', {
       endpoint_url: endpointUrl,
       bucket,
       prefix,
@@ -194,7 +194,7 @@ async function uploadLocalFiles(
     const localPath = await join(localDir, relativePath)
     const s3Key = prefix + relativePath
 
-    await invoke('upload_file', {
+    await invoke('upload_file_to_s3', {
       endpoint_url: endpointUrl,
       bucket,
       localPath,
@@ -232,7 +232,7 @@ async function downloadRemoteFiles(
     const localPath = await join(localDir, relativePath)
     const s3Key = prefix + relativePath
 
-    await invoke('download_file', {
+    await invoke('download_file_from_s3', {
       endpoint_url: endpointUrl,
       bucket,
       localPath,
@@ -293,7 +293,7 @@ async function deleteRemoteExtraFiles(
   for (const relativePath of filesToDelete) {
     const s3Key = prefix + relativePath
 
-    await invoke('delete_object', {
+    await invoke('delete_s3_object', {
       endpoint_url: endpointUrl,
       bucket,
       s3Key,

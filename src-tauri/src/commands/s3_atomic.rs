@@ -181,7 +181,7 @@ pub fn clear_s3_client_cache() {
 /// * 网络连接问题
 /// * 服务配置错误
 #[tauri::command]
-pub async fn list_buckets(
+pub async fn list_s3_buckets(
     endpoint_url: String,
     app: tauri::AppHandle,
 ) -> Result<Vec<String>, String> {
@@ -228,7 +228,7 @@ pub async fn list_buckets(
 /// * 包含完整的对象元数据信息和分页令牌
 /// * 前端需要根据 `is_truncated` 和 `next_continuation_token` 来决定是否继续获取
 #[tauri::command]
-pub async fn list_objects(
+pub async fn list_s3_objects(
     endpoint_url: String,
     bucket: String,
     prefix: Option<String>,
@@ -300,7 +300,7 @@ pub async fn list_objects(
 /// * 会覆盖已存在的同名对象
 /// * 上传是原子操作，要么完全成功，要么完全失败
 #[tauri::command]
-pub async fn upload_file(
+pub async fn upload_file_to_s3(
     endpoint_url: String,
     bucket: String,
     local_path: String,
@@ -357,7 +357,7 @@ pub async fn upload_file(
 /// * 需要适当的删除权限
 /// * 操作是原子的，要么完全成功，要么完全失败
 #[tauri::command]
-pub async fn delete_object(
+pub async fn delete_s3_object(
     endpoint_url: String,
     bucket: String,
     s3_key: String,
@@ -374,6 +374,71 @@ pub async fn delete_object(
         .send()
         .await
         .map_err(|e| format!("删除对象失败: {}", e))?;
+
+    Ok(())
+}
+
+/// 从 S3 下载文件到本地
+///
+/// 将指定的 S3 对象下载到本地文件系统中。如果本地目录不存在，会自动创建。
+///
+/// # 参数
+///
+/// * `endpoint_url` - S3 服务的终端节点 URL
+/// * `bucket` - 源存储桶名称
+/// * `local_path` - 本地文件的完整路径
+/// * `s3_key` - S3 对象的键名
+/// * `app` - Tauri 应用句柄，用于获取 S3 配置
+///
+/// # 返回值
+///
+/// * `Ok(())` - 文件下载成功
+/// * `Err(String)` - 下载失败时的错误描述
+///
+/// # 行为
+///
+/// * 自动创建本地目录（如果不存在）
+/// * 会覆盖已存在的同名本地文件
+/// * 保持原始文件内容
+/// * 下载是原子操作，要么完全成功，要么完全失败
+#[tauri::command]
+pub async fn download_file_from_s3(
+    endpoint_url: String,
+    bucket: String,
+    local_path: String,
+    s3_key: String,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let client = get_cached_s3_client(&endpoint_url, &app)
+        .await
+        .map_err(|e| format!("获取 S3 客户端失败: {}", e))?;
+
+    // 获取 S3 对象
+    let response = client
+        .get_object()
+        .bucket(&bucket)
+        .key(&s3_key)
+        .send()
+        .await
+        .map_err(|e| format!("获取 S3 对象失败: {}", e))?;
+
+    // 确保本地目录存在
+    let path = Path::new(&local_path);
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("创建本地目录失败: {}", e))?;
+    }
+
+    // 将响应体转换为异步读取器并直接复制到文件
+    let mut body = response.body.into_async_read();
+    let mut file = tokio::fs::File::create(path)
+        .await
+        .map_err(|e| format!("创建本地文件失败: {}", e))?;
+
+    tokio::io::copy(&mut body, &mut file)
+        .await
+        .map_err(|e| format!("写入文件失败: {}", e))?;
 
     Ok(())
 }

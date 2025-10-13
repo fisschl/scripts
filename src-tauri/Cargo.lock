@@ -2414,7 +2414,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.0",
+ "socket2 0.5.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -4374,6 +4374,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-store",
  "tempfile",
+ "tokio",
  "walkdir",
 ]
 
@@ -5395,6 +5396,7 @@ dependencies = [
  "io-uring",
  "libc",
  "mio",
+ "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "slab",
