@@ -6,9 +6,12 @@ import { array, object, string } from 'zod/mini'
  * S3 实例 Zod 模式定义
  *
  * 定义 S3 实例的验证规则和数据结构
+ * 使用 s3_instance_id 作为唯一主键，避免 endpoint_url 重复冲突
  */
 export const S3InstanceZod = object({
-  /** S3 服务的终端节点 URL */
+  /** S3 实例唯一标识符 (主键) */
+  s3_instance_id: string(),
+  /** S3 服务的终端节点 URL (可重复) */
   endpoint_url: string(),
   /** AWS 访问密钥 ID */
   access_key_id: string(),
@@ -46,6 +49,29 @@ export async function loadS3Instances(): Promise<S3Instances> {
     return []
   }
   return result.data
+}
+
+/**
+ * 查找 S3 实例
+ *
+ * 支持通过 s3_instance_id 或 endpoint_url 查找实例，优先返回 s3_instance_id 匹配的实例
+ *
+ * @param instances - S3 实例列表
+ * @param identifier - s3_instance_id 或 endpoint_url
+ * @returns S3Instance | null - 找到的实例，未找到则返回 null
+ */
+export function findS3Instance(
+  instances: S3Instances,
+  identifier: string,
+): S3Instance | null {
+  // 优先通过 s3_instance_id 查找
+  const instance = instances.find(item => item.s3_instance_id === identifier)
+  if (instance) {
+    return instance
+  }
+
+  // 如果 s3_instance_id 未找到，则通过 endpoint_url 查找
+  return instances.find(item => item.endpoint_url === identifier) || null
 }
 
 /**

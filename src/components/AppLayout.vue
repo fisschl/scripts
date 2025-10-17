@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Copy, GitBranch, HardDrive, Hash, RefreshCw } from 'lucide-vue-next'
+import { Copy, GitBranch, Hash, RefreshCw } from 'lucide-vue-next'
 
 /**
  * 获取当前路由信息
@@ -28,12 +28,6 @@ const examples = computed(() => {
       path: '/repo-clone',
       icon: markRaw(GitBranch),
       isActive: route.path.startsWith('/repo-clone'),
-    },
-    {
-      name: 'S3 配置',
-      path: '/s3-config',
-      icon: markRaw(HardDrive),
-      isActive: route.path.startsWith('/s3-config'),
     },
     {
       name: 'S3 同步',

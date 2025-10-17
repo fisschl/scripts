@@ -18,6 +18,8 @@ use tauri_plugin_store::StoreExt;
 /// 包含连接 S3 服务所需的认证信息和网络配置
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct S3Config {
+    /// S3 实例唯一标识符 (主键)
+    pub s3_instance_id: String,
     /// AWS 访问密钥 ID
     pub access_key_id: String,
     /// AWS 秘密访问密钥
@@ -84,12 +86,12 @@ fn get_s3_client_cache() -> &'static Cache<String, Client> {
 
 /// 获取指定 S3 服务的客户端实例
 ///
-/// 首先检查缓存中是否存在指定 endpoint_url 的客户端，如果存在则直接返回；
+/// 首先检查缓存中是否存在指定 s3_instance_id 的客户端，如果存在则直接返回；
 /// 如果不存在，则根据配置创建新的 S3 客户端并将其缓存以供后续使用。
 ///
 /// # 参数
 ///
-/// * `endpoint_url` - S3 服务的终端节点 URL，用作缓存键
+/// * `s3_instance_id` - S3 实例的唯一标识符，用作缓存键
 /// * `app` - Tauri 应用句柄，用于访问配置存储
 ///
 /// # 返回值
@@ -109,12 +111,12 @@ fn get_s3_client_cache() -> &'static Cache<String, Client> {
 ///
 /// 此函数是线程安全的，可以同时从多个异步任务中调用。
 /// 内部缓存使用同步机制保证并发访问的安全性。
-pub async fn get_cached_s3_client(endpoint_url: &str, app: &tauri::AppHandle) -> Result<Client> {
+pub async fn get_cached_s3_client(s3_instance_id: &str, app: &tauri::AppHandle) -> Result<Client> {
     let cache = get_s3_client_cache();
 
     let client = cache
-        .try_get_with(endpoint_url.to_string(), async move {
-            create_s3_client_from_config(endpoint_url, &app).await
+        .try_get_with(s3_instance_id.to_string(), async move {
+            create_s3_client_from_config(s3_instance_id, &app).await
         })
         .await
         .map_err(|e: Arc<anyhow::Error>| anyhow::anyhow!("{}", e))?;
@@ -124,12 +126,12 @@ pub async fn get_cached_s3_client(endpoint_url: &str, app: &tauri::AppHandle) ->
 
 /// 根据配置创建 S3 客户端
 ///
-/// 从应用配置中读取指定 endpoint_url 的 S3 配置信息，并创建对应的 S3 客户端。
+/// 从应用配置中读取指定 s3_instance_id 的 S3 配置信息，并创建对应的 S3 客户端。
 /// 此函数封装了配置读取、解析和客户端创建的完整流程。
 ///
 /// # 参数
 ///
-/// * `endpoint_url` - S3 服务的终端节点 URL，用于匹配配置
+/// * `s3_instance_id` - S3 实例的唯一标识符，用于匹配配置
 /// * `app` - Tauri 应用句柄，用于访问配置存储
 ///
 /// # 返回值
@@ -142,10 +144,10 @@ pub async fn get_cached_s3_client(endpoint_url: &str, app: &tauri::AppHandle) ->
 /// 1. 从应用的 "s3-config.json" 配置文件中读取配置
 /// 2. 从配置中获取 "s3-instances" 数组
 /// 3. 解析 S3 配置列表
-/// 4. 根据传入的 endpoint_url 查找匹配的配置项
+/// 4. 根据传入的 s3_instance_id 查找匹配的配置项
 /// 5. 使用找到的配置创建 AWS 凭证和客户端
 async fn create_s3_client_from_config(
-    endpoint_url: &str,
+    s3_instance_id: &str,
     app: &tauri::AppHandle,
 ) -> Result<Client> {
     // 获取 store，使用与前端相同的配置文件名
@@ -161,8 +163,8 @@ async fn create_s3_client_from_config(
     // 查找匹配的配置
     let config = instances
         .into_iter()
-        .find(|config| config.endpoint_url == endpoint_url)
-        .ok_or_else(|| anyhow::anyhow!("未找到endpoint_url为 {} 的S3配置", endpoint_url))?;
+        .find(|config| config.s3_instance_id == s3_instance_id)
+        .ok_or_else(|| anyhow::anyhow!("未找到s3_instance_id为 {} 的S3配置", s3_instance_id))?;
 
     // 创建 AWS 凭证
     let creds = aws_credential_types::Credentials::new(
@@ -216,12 +218,12 @@ pub fn clear_s3_client_cache() {
 
 /// 列举指定 S3 服务中的所有存储桶
 ///
-/// 查询并返回指定 endpoint_url 对应的 S3 服务中所有存储桶的名称列表。
+/// 查询并返回指定 s3_instance_id 对应的 S3 服务中所有存储桶的名称列表。
 /// 此操作需要适当的 S3 访问权限。
 ///
 /// # 参数
 ///
-/// * `endpoint_url` - S3 服务的终端节点 URL，用于标识具体的 S3 服务
+/// * `s3_instance_id` - S3 实例的唯一标识符，用于标识具体的 S3 服务
 /// * `app` - Tauri 应用句柄，用于获取 S3 配置和客户端
 ///
 /// # 返回值
@@ -241,10 +243,10 @@ pub fn clear_s3_client_cache() {
 /// - 建议缓存结果以避免频繁调用
 #[tauri::command]
 pub async fn list_s3_buckets(
-    endpoint_url: String,
+    s3_instance_id: String,
     app: tauri::AppHandle,
 ) -> Result<Vec<String>, String> {
-    let client = get_cached_s3_client(&endpoint_url, &app)
+    let client = get_cached_s3_client(&s3_instance_id, &app)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -268,13 +270,13 @@ pub async fn list_s3_buckets(
 /// 获取指定存储桶中匹配前缀的对象列表，支持分页获取。
 #[tauri::command]
 pub async fn list_s3_objects(
-    endpoint_url: String,
+    s3_instance_id: String,
     bucket: String,
     prefix: Option<String>,
     continuation_token: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<ListObjectsResponse, String> {
-    let client = get_cached_s3_client(&endpoint_url, &app)
+    let client = get_cached_s3_client(&s3_instance_id, &app)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -317,13 +319,13 @@ pub async fn list_s3_objects(
 /// 将本地文件上传到指定的 S3 存储桶和位置。自动根据文件扩展名设置 MIME 类型。
 #[tauri::command]
 pub async fn upload_file_to_s3(
-    endpoint_url: String,
+    s3_instance_id: String,
     bucket: String,
     local_path: String,
     s3_key: String,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let client = get_cached_s3_client(&endpoint_url, &app)
+    let client = get_cached_s3_client(&s3_instance_id, &app)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -355,12 +357,12 @@ pub async fn upload_file_to_s3(
 /// 从指定存储桶中永久删除一个对象。此操作不可撤销。
 #[tauri::command]
 pub async fn delete_s3_object(
-    endpoint_url: String,
+    s3_instance_id: String,
     bucket: String,
     s3_key: String,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let client = get_cached_s3_client(&endpoint_url, &app)
+    let client = get_cached_s3_client(&s3_instance_id, &app)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -380,13 +382,13 @@ pub async fn delete_s3_object(
 /// 将指定的 S3 对象下载到本地文件系统中。如果本地目录不存在，会自动创建。
 #[tauri::command]
 pub async fn download_file_from_s3(
-    endpoint_url: String,
+    s3_instance_id: String,
     bucket: String,
     local_path: String,
     s3_key: String,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let client = get_cached_s3_client(&endpoint_url, &app)
+    let client = get_cached_s3_client(&s3_instance_id, &app)
         .await
         .map_err(|e| e.to_string())?;
 

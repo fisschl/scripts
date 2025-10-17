@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import type { FormRules } from 'element-plus'
-import type { S3Instance } from './s3-sync/components/instances'
-import { invoke } from '@tauri-apps/api/core'
+import type { S3Instance } from './instances'
 import { cloneDeep, remove } from 'lodash-es'
 import { Globe, Key, MapPin, Plus } from 'lucide-vue-next'
-import { loadS3Instances, S3InstanceZod, saveS3Instances } from './s3-sync/components/instances'
+import { v7 as uuidv7 } from 'uuid'
+import { loadS3Instances, S3InstanceZod, saveS3Instances } from './instances'
+
+interface Emits {
+  (e: 'close'): void
+}
+
+const emit = defineEmits<Emits>()
+
+// 使用 defineModel 创建双向绑定的 model
+const visible = defineModel<boolean>({ default: false })
 
 // 校验规则
 const rules = reactive<FormRules>({
@@ -33,7 +42,6 @@ const showFormDialog = ref(false)
 async function loadInstances() {
   instances.value = await loadS3Instances()
 }
-loadInstances()
 
 // 保存 S3 实例列表
 async function saveInstances() {
@@ -68,13 +76,26 @@ async function resetForm() {
 // 提交表单
 async function submitForm() {
   await formRef.value?.validate()
-  const data = instances.value.find((item: S3Instance) => item.endpoint_url === form.value.endpoint_url)
-  if (data) {
-    Object.assign(data, form.value)
-    return
+
+  const { s3_instance_id } = form.value
+
+  // 判断是编辑还是新增
+  if (s3_instance_id) {
+    // 编辑模式：根据 s3_instance_id 查找并更新现有实例
+    const item = instances.value.find(item => item.s3_instance_id === s3_instance_id)
+    if (item)
+      Object.assign(item, form.value)
+    else
+      ElMessage.error('实例不存在')
   }
-  const result = S3InstanceZod.parse(form.value)
-  instances.value.push(result)
+  else {
+    // 新增模式：创建新的 S3 实例
+    const result = S3InstanceZod.parse({
+      ...form.value,
+      s3_instance_id: uuidv7(),
+    })
+    instances.value.push(result)
+  }
 
   await saveInstances()
   ElMessage.success('保存成功')
@@ -84,23 +105,29 @@ async function submitForm() {
 // 删除实例
 async function deleteInstance(instance: S3Instance) {
   await ElMessageBox.confirm(
-    `确定删除 "${instance.region}" 吗？`,
+    `确定删除 "${instance.endpoint_url}" 吗？`,
     '删除确认',
   )
-  remove(instances.value, item => item.endpoint_url === instance.endpoint_url)
+  remove(instances.value, item => item.s3_instance_id === instance.s3_instance_id)
   await saveInstances()
   ElMessage.success('删除成功')
 }
-
-// 页面卸载时清除缓存
-onBeforeUnmount(() => {
-  invoke('clear_s3_client_cache')
-})
 </script>
 
 <template>
-  <div class="p-4 flex flex-col h-full min-h-0">
-    <div class="mb-4 flex items-center justify-end">
+  <ElDrawer
+    v-model="visible"
+    title="S3 实例配置"
+    size="800px"
+    direction="rtl"
+    append-to-body
+    :header-class="$style.drawerHeader"
+    :body-class="$style.drawerBody"
+    @close="emit('close')"
+    @open="loadInstances"
+  >
+    <!-- 添加实例按钮 -->
+    <div class="mb-4 flex justify-end">
       <ElButton type="primary" @click="openAddForm">
         <Plus :size="18" class="mr-2" />
         添加实例
@@ -111,8 +138,8 @@ onBeforeUnmount(() => {
     <ElEmpty v-if="instances.length === 0" description="暂无 S3 实例配置" class="py-12" />
 
     <ElTable v-else :data="instances" border style="width: 100%" class="flex-1">
-      <ElTableColumn type="index" label="序号" width="80" />
-      <ElTableColumn prop="endpoint_url" label="Endpoint URL" min-width="300" />
+      <ElTableColumn type="index" label="序号" width="60" />
+      <ElTableColumn prop="endpoint_url" label="Endpoint URL" min-width="200" />
       <ElTableColumn label="操作" width="150">
         <template #default="{ row }">
           <ElButton
@@ -137,7 +164,8 @@ onBeforeUnmount(() => {
     <ElDialog
       v-model="showFormDialog"
       title="编辑 S3 实例"
-      width="600px"
+      width="500px"
+      append-to-body
     >
       <ElForm
         ref="form-ref"
@@ -151,7 +179,6 @@ onBeforeUnmount(() => {
           <ElInput
             v-model.trim="form.endpoint_url"
             placeholder="例如: https://tos-s3-cn-shanghai.volces.com"
-            style="width: 22rem;"
           >
             <template #prefix>
               <Globe :size="16" />
@@ -187,7 +214,6 @@ onBeforeUnmount(() => {
           <ElInput
             v-model.trim="form.region"
             placeholder="例如: tos-s3-cn-shanghai"
-            style="width: 16rem;"
           >
             <template #prefix>
               <MapPin :size="16" />
@@ -205,5 +231,16 @@ onBeforeUnmount(() => {
         </div>
       </ElForm>
     </ElDialog>
-  </div>
+  </ElDrawer>
 </template>
+
+<style module>
+.drawerHeader {
+  margin-bottom: 0;
+}
+
+.drawerBody {
+  display: flex;
+  flex-direction: column;
+}
+</style>

@@ -18,8 +18,8 @@ import S3InstanceSelector from './components/S3InstanceSelector.vue'
 const FormDataZod = object({
   /** 存储桶名称 */
   bucket: string(),
-  /** S3 服务的终端节点 URL */
-  endpoint_url: string(),
+  /** S3 实例唯一标识符 */
+  s3_instance_id: string(),
   /** 本地目录路径 */
   local_dir: string(),
   /** 远程目录路径 */
@@ -34,13 +34,11 @@ const FormDataZod = object({
 interface FormData extends Infer<typeof FormDataZod> {}
 
 // 表单数据
-const form = reactive<FormData>({
-  bucket: '',
-  endpoint_url: '',
-  local_dir: '',
-  remote_dir: '',
-  sync_direction: 'local-to-remote', // 默认本地到远程
-  delete_extras: true, // 默认勾选删除多余文件
+const form = reactive<Partial<FormData>>({
+  // 默认本地到远程
+  sync_direction: 'local-to-remote',
+  // 默认勾选删除多余文件
+  delete_extras: true,
 })
 
 // 表单引用
@@ -48,7 +46,7 @@ const formRef = useTemplateRef('form-ref')
 
 // 校验规则
 const rules = reactive<FormRules>({
-  endpoint_url: [
+  s3_instance_id: [
     { required: true, message: '请选择 S3 实例' },
   ],
   bucket: [
@@ -124,12 +122,12 @@ async function updateLocalFilePaths(dir: string): Promise<void> {
  *
  * 递归获取远程S3存储桶中的所有文件，追加到响应式集合。
  *
- * @param endpointUrl - S3 服务的终端节点 URL
+ * @param s3InstanceId - S3 实例的唯一标识符
  * @param bucket - 存储桶名称
  * @param prefix - S3 对象键前缀
  */
 async function updateRemoteFilePaths(
-  endpointUrl: string,
+  s3InstanceId: string,
   bucket: string,
   prefix: string,
 ): Promise<void> {
@@ -142,7 +140,7 @@ async function updateRemoteFilePaths(
       is_truncated: boolean
       next_continuation_token?: string
     }>('list_s3_objects', {
-      endpoint_url: endpointUrl,
+      s3_instance_id: s3InstanceId,
       bucket,
       prefix,
       continuation_token: continuationToken,
@@ -175,14 +173,14 @@ async function updateRemoteFilePaths(
  * 遍历本地文件路径列表，上传文件到S3存储桶
  *
  * @param localDir - 本地目录路径
- * @param endpointUrl - S3 服务的终端节点 URL
+ * @param s3InstanceId - S3 实例的唯一标识符
  * @param bucket - 存储桶名称
  * @param prefix - S3 对象键前缀
  * @throws {Error} 当上传失败时抛出错误
  */
 async function uploadLocalFiles(
   localDir: string,
-  endpointUrl: string,
+  s3InstanceId: string,
   bucket: string,
   prefix: string,
 ): Promise<void> {
@@ -195,7 +193,7 @@ async function uploadLocalFiles(
     const s3Key = prefix + relativePath
 
     await invoke('upload_file_to_s3', {
-      endpoint_url: endpointUrl,
+      s3_instance_id: s3InstanceId,
       bucket,
       localPath,
       s3Key,
@@ -214,14 +212,14 @@ async function uploadLocalFiles(
  * 遍历远程文件路径列表，下载文件到本地目录
  *
  * @param localDir - 本地目录路径
- * @param endpointUrl - S3 服务的终端节点 URL
+ * @param s3InstanceId - S3 实例的唯一标识符
  * @param bucket - 存储桶名称
  * @param prefix - S3 对象键前缀
  * @throws {Error} 当下载失败时抛出错误
  */
 async function downloadRemoteFiles(
   localDir: string,
-  endpointUrl: string,
+  s3InstanceId: string,
   bucket: string,
   prefix: string,
 ): Promise<void> {
@@ -233,7 +231,7 @@ async function downloadRemoteFiles(
     const s3Key = prefix + relativePath
 
     await invoke('download_file_from_s3', {
-      endpoint_url: endpointUrl,
+      s3_instance_id: s3InstanceId,
       bucket,
       localPath,
       s3Key,
@@ -276,13 +274,13 @@ async function deleteLocalExtraFiles(localDir: string): Promise<void> {
  *
  * 删除远程集合中剩余的所有文件（这些文件在本地不存在）
  *
- * @param endpointUrl - S3 服务的终端节点 URL
+ * @param s3InstanceId - S3 实例的唯一标识符
  * @param bucket - 存储桶名称
  * @param prefix - S3 对象键前缀
  * @throws {Error} 当删除失败时抛出错误
  */
 async function deleteRemoteExtraFiles(
-  endpointUrl: string,
+  s3InstanceId: string,
   bucket: string,
   prefix: string,
 ): Promise<void> {
@@ -294,7 +292,7 @@ async function deleteRemoteExtraFiles(
     const s3Key = prefix + relativePath
 
     await invoke('delete_s3_object', {
-      endpoint_url: endpointUrl,
+      s3_instance_id: s3InstanceId,
       bucket,
       s3Key,
     })
@@ -332,27 +330,29 @@ async function selectLocalDir() {
 async function startSync() {
   await formRef.value?.validate()
 
+  const formData = FormDataZod.parse(form)
+
   // 保存表单数据（包含所有信息）
   await store.then(async (store) => {
-    await store.set(FORM_STORAGE_KEY, form)
+    await store.set(FORM_STORAGE_KEY, formData)
     await store.save()
   })
 
   loading.value = true
 
   try {
-    const remotePrefix = (`${form.remote_dir}/`).replace(/^[\\/]+/, '').replace(/[\\/]+/g, '/')
+    const remotePrefix = (`${formData.remote_dir}/`).replace(/^[\\/]+/, '').replace(/[\\/]+/g, '/')
 
     // 1. 清空响应式集合
     localPaths.clear()
     remotePaths.clear()
 
     // 2. 获取本地和远程文件路径列表
-    await updateLocalFilePaths(form.local_dir)
-    await updateRemoteFilePaths(form.endpoint_url, form.bucket, remotePrefix)
+    await updateLocalFilePaths(formData.local_dir)
+    await updateRemoteFilePaths(formData.s3_instance_id, formData.bucket, remotePrefix)
 
     // 3. 根据同步方向执行不同的逻辑
-    switch (form.sync_direction) {
+    switch (formData.sync_direction) {
       case 'local-to-remote':
         // 本地到远程同步
         if (localPaths.size === 0 && remotePaths.size === 0) {
@@ -360,19 +360,19 @@ async function startSync() {
           return
         }
 
-        if (localPaths.size === 0 && !form.delete_extras) {
+        if (localPaths.size === 0 && !formData.delete_extras) {
           ElMessage.info('本地没有文件，且未启用删除远程文件，无需操作')
           return
         }
 
         // 上传本地文件
         if (localPaths.size > 0) {
-          await uploadLocalFiles(form.local_dir, form.endpoint_url, form.bucket, remotePrefix)
+          await uploadLocalFiles(formData.local_dir, formData.s3_instance_id, formData.bucket, remotePrefix)
         }
 
         // 删除远程多余文件（如果启用）
-        if (form.delete_extras && remotePaths.size > 0) {
-          await deleteRemoteExtraFiles(form.endpoint_url, form.bucket, remotePrefix)
+        if (formData.delete_extras && remotePaths.size > 0) {
+          await deleteRemoteExtraFiles(formData.s3_instance_id, formData.bucket, remotePrefix)
         }
 
         ElMessage.success('S3 同步完成（本地 → 远程）')
@@ -385,19 +385,19 @@ async function startSync() {
           return
         }
 
-        if (remotePaths.size === 0 && !form.delete_extras) {
+        if (remotePaths.size === 0 && !formData.delete_extras) {
           ElMessage.info('远程没有文件，且未启用删除本地文件，无需操作')
           return
         }
 
         // 下载远程文件
         if (remotePaths.size > 0) {
-          await downloadRemoteFiles(form.local_dir, form.endpoint_url, form.bucket, remotePrefix)
+          await downloadRemoteFiles(formData.local_dir, formData.s3_instance_id, formData.bucket, remotePrefix)
         }
 
         // 删除本地多余文件（如果启用）
-        if (form.delete_extras && localPaths.size > 0) {
-          await deleteLocalExtraFiles(form.local_dir)
+        if (formData.delete_extras && localPaths.size > 0) {
+          await deleteLocalExtraFiles(formData.local_dir)
         }
 
         ElMessage.success('S3 同步完成（远程 → 本地）')
@@ -424,10 +424,10 @@ async function startSync() {
       label-suffix="："
       @submit.prevent="startSync"
     >
-      <ElFormItem label="S3 实例" prop="endpoint_url">
+      <ElFormItem label="S3 实例" prop="s3_instance_id">
         <S3InstanceSelector
-          v-model="form.endpoint_url"
-          :class="$style.input"
+          v-model="form.s3_instance_id"
+          :class="$style.instanceSelector"
           :disabled="loading"
         />
       </ElFormItem>
@@ -460,7 +460,7 @@ async function startSync() {
         <ElInput
           v-model="form.local_dir"
           placeholder="点击选择要上传的本地目录..."
-          :class="$style.input"
+          :class="$style.pathInput"
           :disabled="loading"
           @click="selectLocalDir"
         >
@@ -474,7 +474,7 @@ async function startSync() {
         <ElInput
           v-model.trim="form.remote_dir"
           placeholder="例如: website/ 或 backup/2024/ (建议以斜杠结尾)"
-          :class="$style.input"
+          :class="$style.pathInput"
           :disabled="loading"
         >
           <template #prefix>
@@ -523,15 +523,15 @@ async function startSync() {
 </template>
 
 <style module>
-.input {
-  max-width: 40rem;
+.instanceSelector {
+  width: 25rem;
+}
+
+.pathInput {
+  width: 30rem;
 }
 
 .bucketInput {
-  max-width: 20rem;
-}
-
-.regionInput {
-  max-width: 20rem;
+  width: 20rem;
 }
 </style>
