@@ -52,29 +52,6 @@ export async function loadS3Instances(): Promise<S3Instances> {
 }
 
 /**
- * 查找 S3 实例
- *
- * 支持通过 s3_instance_id 或 endpoint_url 查找实例，优先返回 s3_instance_id 匹配的实例
- *
- * @param instances - S3 实例列表
- * @param identifier - s3_instance_id 或 endpoint_url
- * @returns S3Instance | null - 找到的实例，未找到则返回 null
- */
-export function findS3Instance(
-  instances: S3Instances,
-  identifier: string,
-): S3Instance | null {
-  // 优先通过 s3_instance_id 查找
-  const instance = instances.find(item => item.s3_instance_id === identifier)
-  if (instance) {
-    return instance
-  }
-
-  // 如果 s3_instance_id 未找到，则通过 endpoint_url 查找
-  return instances.find(item => item.endpoint_url === identifier) || null
-}
-
-/**
  * 保存 S3 实例列表
  *
  * 将 S3 实例列表保存到本地存储文件中。
