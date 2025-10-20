@@ -5,4 +5,5 @@
 pub mod archive;
 pub mod command_executor;
 pub mod fs;
+pub mod hash;
 pub mod s3_atomic;

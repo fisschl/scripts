@@ -1,5 +1,7 @@
 {
   "editor.codeActionsOnSave": {
+    "source.fixAll.ts": "always",
+    "source.fixAll.oxc": "always",
     "source.fixAll.eslint": "always"
   },
   "files.autoSave": "onFocusChange",
