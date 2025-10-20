@@ -240,3 +240,4 @@ pub fn calculate_directory_size(path: String) -> Result<u64, String> {
 
     Ok(total_size)
 }
+

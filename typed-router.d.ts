@@ -44,6 +44,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/file-manager/': RouteRecordInfo<
+      '/file-manager/',
+      '/file-manager',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/repo-clone': RouteRecordInfo<
       '/repo-clone',
       '/repo-clone',
@@ -86,6 +93,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/file-hash.vue': {
       routes:
         | '/file-hash'
+      views:
+        | never
+    }
+    'src/pages/file-manager/index.vue': {
+      routes:
+        | '/file-manager/'
       views:
         | never
     }

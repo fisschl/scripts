@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Copy, GitBranch, Hash, RefreshCw } from "lucide-vue-next";
+import { Copy, Folder, GitBranch, Hash, RefreshCw } from "lucide-vue-next";
 
 /**
  * 获取当前路由信息
@@ -11,6 +11,12 @@ const route = useRoute();
  */
 const examples = computed(() => {
   return [
+    {
+      name: "文件管理",
+      path: "/file-manager",
+      icon: markRaw(Folder),
+      isActive: route.path.startsWith("/file-manager"),
+    },
     {
       name: "计算文件哈希值",
       path: "/file-hash",
