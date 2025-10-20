@@ -5,7 +5,14 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Store } from "@tauri-apps/plugin-store";
 import { merge } from "lodash-es";
 import { CloudDownload, CloudUpload, Database, Folder } from "lucide-vue-next";
-import { boolean, literal, object, string, union } from "zod/mini";
+import {
+  boolean,
+  literal,
+  object,
+  string,
+  union,
+  type infer as Infer,
+} from "zod/mini";
 import type { FileInfo } from "@/pages/file-copy/components/file-operations";
 import S3InstanceSelector from "./components/S3InstanceSelector.vue";
 import type { S3Object } from "./components/s3-files";

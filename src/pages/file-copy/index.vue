@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Store } from "@tauri-apps/plugin-store";
 import { merge } from "lodash-es";
 import { Copy, Folder } from "lucide-vue-next";
-import { array, boolean, object, string } from "zod/mini";
+import { array, boolean, object, string, type infer as Infer } from "zod/mini";
 import {
   getFileExtension,
   type FileInfo,
