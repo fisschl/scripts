@@ -91,30 +91,33 @@ store.then(async (store) => {
  * 递归扫描指定目录下的所有文件，追加到响应式集合。
  * 自动处理路径分隔符转换，并过滤出文件类型（排除目录）。
  *
- * @param dir - 要扫描的本地目录路径
+ * @param rootDir - 根目录路径（用于计算相对路径）
+ * @param currentDir - 当前扫描的目录路径（默认为根目录）
  */
-async function updateLocalFilePaths(dir: string): Promise<void> {
-  // 递归扫描目录的内部函数
-  async function scanDirectory(dirPath: string): Promise<void> {
-    const files = await invoke<FileInfo[]>("list_directory", { path: dirPath });
+async function updateLocalFilePaths(
+  rootDir: string,
+  currentDir?: string,
+): Promise<void> {
+  const scanDir = currentDir || rootDir;
+  const files = await invoke<FileInfo[]>("list_directory", { path: scanDir });
 
-    for (const file of files) {
-      if (file.is_dir) {
-        // 递归处理子目录
-        await scanDirectory(file.path);
-      } else {
-        // 移除开头的路径分隔符并统一为正斜杠
-        const relativePath = file.path
-          .replace(dir, "")
-          .replace(/^[\\/]+/, "")
-          .replaceAll(/[\\/]+/g, "/");
+  // 并行处理所有文件和子目录
+  const scanPromises = files.map(async (file) => {
+    if (file.is_dir) {
+      // 递归处理子目录，传递原始根目录
+      await updateLocalFilePaths(rootDir, file.path);
+    } else {
+      // 始终使用原始根目录计算相对路径
+      const relativePath = file.path
+        .replace(rootDir, "")
+        .replace(/^[\\/]+/, "")
+        .replaceAll(/[\\/]+/g, "/");
 
-        localPaths.add(relativePath);
-      }
+      localPaths.add(relativePath);
     }
-  }
+  });
 
-  await scanDirectory(dir);
+  await Promise.all(scanPromises);
 }
 
 /**
