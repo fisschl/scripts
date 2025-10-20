@@ -1,12 +1,11 @@
 {
-  "extends": "@vue/tsconfig/tsconfig.dom.json",
-  "compilerOptions": {
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
     },
-    "types": ["vite/client", "node", "unplugin-vue-router/client"]
-  },
-  "include": ["src/**/*.ts", "*.d.ts", "src/**/*.tsx", "src/**/*.vue"]
+    {
+      "path": "./tsconfig.app.json"
+    }
+  ],
+  "files": []
 }

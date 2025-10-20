@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { invoke } from '@tauri-apps/api/core'
-import { open } from '@tauri-apps/plugin-dialog'
-import { File, Key } from 'lucide-vue-next'
+import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
+import { File, Key } from "lucide-vue-next";
 
 /** 选择的文件路径 */
-const filePath = ref('')
+const filePath = ref("");
 /** 文件哈希计算结果 */
-const hashResult = ref('')
+const hashResult = ref("");
 
 /**
  * 选择文件并计算哈希值
@@ -17,16 +17,13 @@ async function selectFile() {
   const selected = await open({
     multiple: false,
     directory: false,
-  })
-  if (!selected)
-    return
-  filePath.value = selected
-  if (!filePath.value)
-    return
-  const result = await invoke('file_hash', { filePath: filePath.value })
-  if (typeof result !== 'string')
-    return
-  hashResult.value = result
+  });
+  if (!selected) return;
+  filePath.value = selected;
+  if (!filePath.value) return;
+  const result = await invoke("file_hash", { filePath: filePath.value });
+  if (typeof result !== "string") return;
+  hashResult.value = result;
 }
 </script>
 
@@ -46,10 +43,7 @@ async function selectFile() {
         </ElInput>
       </ElFormItem>
       <ElFormItem v-if="hashResult" label="哈希结果">
-        <ElInput
-          :value="hashResult"
-          :class="$style.input"
-        >
+        <ElInput :value="hashResult" :class="$style.input">
           <template #prefix>
             <Key :size="16" />
           </template>

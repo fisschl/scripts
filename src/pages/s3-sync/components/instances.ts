@@ -1,6 +1,5 @@
-import type { infer as Infer } from 'zod/mini'
-import { Store } from '@tauri-apps/plugin-store'
-import { array, object, string } from 'zod/mini'
+import { Store } from "@tauri-apps/plugin-store";
+import { array, object, string, type infer as Infer } from "zod/mini";
 
 /**
  * S3 实例 Zod 模式定义
@@ -19,19 +18,19 @@ export const S3InstanceZod = object({
   secret_access_key: string(),
   /** AWS 区域或兼容服务的区域标识 */
   region: string(),
-})
+});
 
 /** S3 实例数组 Zod 模式 */
-export const S3InstancesZod = array(S3InstanceZod)
+export const S3InstancesZod = array(S3InstanceZod);
 
 /** S3 实例类型推断 */
-export type S3Instance = Infer<typeof S3InstanceZod>
+export type S3Instance = Infer<typeof S3InstanceZod>;
 /** S3 实例数组类型推断 */
-export type S3Instances = Infer<typeof S3InstancesZod>
+export type S3Instances = Infer<typeof S3InstancesZod>;
 
 // S3 配置存储相关常量
-const S3_INSTANCES_KEY = 's3-instances'
-const S3_CONFIG_FILE = 's3-config.json'
+const S3_INSTANCES_KEY = "s3-instances";
+const S3_CONFIG_FILE = "s3-config.json";
 
 /**
  * 读取 S3 实例列表
@@ -42,13 +41,13 @@ const S3_CONFIG_FILE = 's3-config.json'
  * @returns Promise<S3Instances> 返回经过验证的 S3 实例列表
  */
 export async function loadS3Instances(): Promise<S3Instances> {
-  const store = await Store.load(S3_CONFIG_FILE)
-  const data = await store.get(S3_INSTANCES_KEY)
-  const result = S3InstancesZod.safeParse(data)
+  const store = await Store.load(S3_CONFIG_FILE);
+  const data = await store.get(S3_INSTANCES_KEY);
+  const result = S3InstancesZod.safeParse(data);
   if (!result.success) {
-    return []
+    return [];
   }
-  return result.data
+  return result.data;
 }
 
 /**
@@ -60,7 +59,7 @@ export async function loadS3Instances(): Promise<S3Instances> {
  * @param instances - 要保存的 S3 实例列表
  */
 export async function saveS3Instances(instances: S3Instances) {
-  const store = await Store.load(S3_CONFIG_FILE)
-  await store.set(S3_INSTANCES_KEY, instances)
-  await store.save()
+  const store = await Store.load(S3_CONFIG_FILE);
+  await store.set(S3_INSTANCES_KEY, instances);
+  await store.save();
 }

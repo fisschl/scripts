@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import type { FormRules } from 'element-plus'
-import { invoke } from '@tauri-apps/api/core'
-import { join, tempDir } from '@tauri-apps/api/path'
-import { ExternalLink, GitBranch, Link } from 'lucide-vue-next'
+import { invoke } from "@tauri-apps/api/core";
+import { join, tempDir } from "@tauri-apps/api/path";
+import { ExternalLink, GitBranch, Link } from "lucide-vue-next";
+import type { FormRules } from "element-plus";
 
 /**
  * 命令执行结果类型
  */
 interface CommandResult {
   /** 退出代码 */
-  exit_code: number | null
+  exit_code: number | null;
   /** 标准输出 */
-  stdout: string
+  stdout: string;
   /** 标准错误输出 */
-  stderr: string
+  stderr: string;
 }
 
 /**
@@ -21,36 +21,36 @@ interface CommandResult {
  */
 interface RepoCloneForm {
   /** 源仓库 URL */
-  sourceUrl: string
+  sourceUrl: string;
   /** 目标仓库 URL */
-  targetUrl: string
+  targetUrl: string;
 }
 
 // 表单数据
 const form = reactive<RepoCloneForm>({
-  sourceUrl: '',
-  targetUrl: '',
-})
+  sourceUrl: "",
+  targetUrl: "",
+});
 
 // 表单引用
-const formRef = useTemplateRef('form-ref')
+const formRef = useTemplateRef("form-ref");
 
 // 校验规则
 const rules = reactive<FormRules>({
   sourceUrl: [
-    { required: true, message: '请输入源仓库URL' },
-    { type: 'url', message: '请输入有效的URL地址' },
+    { required: true, message: "请输入源仓库URL" },
+    { type: "url", message: "请输入有效的URL地址" },
   ],
   targetUrl: [
-    { required: true, message: '请输入目标仓库URL' },
-    { type: 'url', message: '请输入有效的URL地址' },
+    { required: true, message: "请输入目标仓库URL" },
+    { type: "url", message: "请输入有效的URL地址" },
   ],
-})
+});
 
 /** 加载状态 */
-const loading = ref(false)
+const loading = ref(false);
 /** 当前执行步骤说明 */
-const currentStep = ref('')
+const currentStep = ref("");
 
 /**
  * 开始仓库克隆流程
@@ -63,69 +63,68 @@ const currentStep = ref('')
  * 5. 清理临时文件
  */
 async function startClone() {
-  await formRef.value?.validate()
+  await formRef.value?.validate();
 
-  loading.value = true
+  loading.value = true;
 
   try {
     // 步骤1：验证源仓库
-    currentStep.value = '正在验证源仓库...'
-    await invoke<CommandResult>('execute_command_sync', {
-      command: 'git',
-      args: ['ls-remote', form.sourceUrl],
+    currentStep.value = "正在验证源仓库...";
+    await invoke<CommandResult>("execute_command_sync", {
+      command: "git",
+      args: ["ls-remote", form.sourceUrl],
       workingDir: await tempDir(),
-    })
+    });
 
     // 步骤2：克隆仓库到临时目录
-    currentStep.value = '正在克隆仓库...'
+    currentStep.value = "正在克隆仓库...";
 
     // 从目标URL提取仓库名作为临时目录名
-    const repoName = form.targetUrl.split('/').pop()?.replace('.git', '') || 'temp-repo'
-    const systemTempDir = await tempDir()
-    const tempPath = await join(systemTempDir, repoName)
+    const repoName =
+      form.targetUrl.split("/").pop()?.replace(".git", "") || "temp-repo";
+    const systemTempDir = await tempDir();
+    const tempPath = await join(systemTempDir, repoName);
 
-    await invoke<CommandResult>('execute_command_sync', {
-      command: 'git',
-      args: ['clone', '--mirror', form.sourceUrl, tempPath],
+    await invoke<CommandResult>("execute_command_sync", {
+      command: "git",
+      args: ["clone", "--mirror", form.sourceUrl, tempPath],
       workingDir: systemTempDir,
-    })
+    });
 
     // 步骤3：配置新的远程推送地址
-    currentStep.value = '正在配置远程地址...'
+    currentStep.value = "正在配置远程地址...";
 
-    await invoke<CommandResult>('execute_command_sync', {
-      command: 'git',
-      args: ['remote', 'add', 'target', form.targetUrl],
+    await invoke<CommandResult>("execute_command_sync", {
+      command: "git",
+      args: ["remote", "add", "target", form.targetUrl],
       workingDir: tempPath,
-    })
+    });
 
     // 步骤4：推送到新远程
-    currentStep.value = '正在推送到目标仓库...'
+    currentStep.value = "正在推送到目标仓库...";
 
-    await invoke<CommandResult>('execute_command_sync', {
-      command: 'git',
-      args: ['push', '--mirror', 'target'],
+    await invoke<CommandResult>("execute_command_sync", {
+      command: "git",
+      args: ["push", "--mirror", "target"],
       workingDir: tempPath,
-    })
+    });
 
     // 步骤5：清理临时目录
-    currentStep.value = '正在清理临时文件...'
+    currentStep.value = "正在清理临时文件...";
 
     // 使用 Rust 后端递归删除临时目录
-    await invoke('remove_path', {
+    await invoke("remove_path", {
       path: tempPath,
-    })
+    });
 
     // 清空步骤说明
-    currentStep.value = ''
-    ElMessage.success('仓库镜像和推送完成')
-  }
-  catch (error) {
-    currentStep.value = ''
-    ElMessage.error(`克隆失败: ${error}`)
-  }
-  finally {
-    loading.value = false
+    currentStep.value = "";
+    ElMessage.success("仓库镜像和推送完成");
+  } catch (error) {
+    currentStep.value = "";
+    ElMessage.error(`克隆失败: ${error}`);
+  } finally {
+    loading.value = false;
   }
 }
 </script>
@@ -167,11 +166,7 @@ async function startClone() {
       </ElFormItem>
 
       <div class="mt-4">
-        <ElButton
-          v-if="!loading"
-          type="primary"
-          native-type="submit"
-        >
+        <ElButton v-if="!loading" type="primary" native-type="submit">
           <GitBranch :size="18" class="mr-2" />
           开始克隆
         </ElButton>
