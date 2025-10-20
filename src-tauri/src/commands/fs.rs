@@ -243,3 +243,65 @@ pub async fn file_hash(file_path: String) -> Result<String, String> {
 
     Ok(encoded)
 }
+
+/// 计算目录总大小
+///
+/// 递归计算指定目录及其所有子目录中所有文件的总大小。
+/// 此函数会遍历整个目录树，累加所有文件的大小。
+///
+/// # 参数
+///
+/// * `path` - 要计算大小的目录路径
+///
+/// # 返回值
+///
+/// * `Ok(u64)` - 成功时返回目录的总大小（字节）
+/// * `Err(String)` - 失败时返回错误描述
+///
+/// # 行为
+///
+/// * 当目录不存在时返回错误
+/// * 当路径不是目录时返回错误
+/// * 递归计算所有子目录中的文件大小
+/// * 对于大型目录结构，计算时间可能较长
+/// * 目录本身的大小不计算在内，只计算其中的文件大小
+#[command]
+pub fn calculate_directory_size(path: String) -> Result<u64, String> {
+    let path = Path::new(&path);
+
+    if !path.exists() {
+        return Err("目录不存在".to_string());
+    }
+
+    if !path.is_dir() {
+        return Err("路径不是目录".to_string());
+    }
+
+    let mut total_size = 0u64;
+
+    fn calculate_size_recursive(dir: &Path, total_size: &mut u64) -> Result<(), String> {
+        let entries = fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("读取目录条目失败: {}", e))?;
+            let entry_path = entry.path();
+
+            if entry_path.is_dir() {
+                // 递归处理子目录
+                calculate_size_recursive(&entry_path, total_size)?;
+            } else if entry_path.is_file() {
+                // 获取文件大小并累加
+                let metadata = entry_path
+                    .metadata()
+                    .map_err(|e| format!("获取文件元数据失败: {}", e))?;
+                *total_size += metadata.len();
+            }
+        }
+
+        Ok(())
+    }
+
+    calculate_size_recursive(path, &mut total_size)?;
+
+    Ok(total_size)
+}
