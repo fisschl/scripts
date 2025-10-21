@@ -58,6 +58,7 @@ const activeExample = computed(() => {
       :default-active="activeExample?.path"
       router
       class="min-h-screen w-full"
+      :class="$style.menu"
     >
       <ElMenuItem
         v-for="example in examples"
@@ -79,5 +80,9 @@ const activeExample = computed(() => {
 <style module>
 .aside {
   width: 220px;
+}
+
+.aside .menu {
+  --el-menu-item-height: 2.8rem;
 }
 </style>

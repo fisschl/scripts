@@ -12,7 +12,6 @@ pub fn run() {
             commands::fs::list_directory,
             commands::fs::copy_file,
             commands::fs::remove_path,
-            commands::fs::calculate_directory_size,
             commands::hash::file_hash,
             commands::s3_atomic::list_s3_buckets,
             commands::s3_atomic::list_s3_objects,

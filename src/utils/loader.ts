@@ -1,5 +1,5 @@
 import { watchImmediate } from "@vueuse/core";
-import { isEqual } from "lodash-es";
+import { cloneDeep, isEqual } from "lodash-es";
 import pLimit from "p-limit";
 
 /**
@@ -25,7 +25,7 @@ export interface AsyncLoadOptions<T, R> {
  * @param options - 配置选项
  * @returns 响应式引用，包含加载的结果数据
  */
-function useAsyncLoad<T, R>(
+export function useAsyncLoad<T, R>(
   options: AsyncLoadOptions<T, R>,
 ): Ref<R | undefined> {
   const limit = pLimit(1);
@@ -44,5 +44,3 @@ function useAsyncLoad<T, R>(
   });
   return result;
 }
-
-export { useAsyncLoad };
