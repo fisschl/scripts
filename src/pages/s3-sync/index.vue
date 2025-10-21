@@ -13,7 +13,7 @@ import {
   union,
   type infer as Infer,
 } from "zod/mini";
-import type { FileInfo } from "@/pages/file-copy/components/file-operations";
+import type { FileInfo } from "@/pages/file-manager/components/file-operations";
 import S3InstanceSelector from "./components/S3InstanceSelector.vue";
 import type { S3Object } from "./components/s3-files";
 import type { FormRules } from "element-plus";

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Copy, Folder, GitBranch, Hash, RefreshCw } from "lucide-vue-next";
+import { Folder, RefreshCw } from "lucide-vue-next";
 
 /**
  * 获取当前路由信息
@@ -16,24 +16,6 @@ const examples = computed(() => {
       path: "/file-manager",
       icon: markRaw(Folder),
       isActive: route.path.startsWith("/file-manager"),
-    },
-    {
-      name: "计算文件哈希值",
-      path: "/file-hash",
-      icon: markRaw(Hash),
-      isActive: route.path.startsWith("/file-hash"),
-    },
-    {
-      name: "文件复制",
-      path: "/file-copy",
-      icon: markRaw(Copy),
-      isActive: route.path.startsWith("/file-copy"),
-    },
-    {
-      name: "Git 仓库克隆",
-      path: "/repo-clone",
-      icon: markRaw(GitBranch),
-      isActive: route.path.startsWith("/repo-clone"),
     },
     {
       name: "S3 同步",

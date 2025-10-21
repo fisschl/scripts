@@ -20,7 +20,7 @@ aws-config = { version = "1.8", features = [
 ] }
 aws-credential-types = "1.2"
 aws-sdk-s3 = "1.108"
-base32 = "0.5"
+bs58 = "0.5"
 blake3 = "1.8"
 chrono = { version = "0.4", features = [ "serde" ] }
 mime_guess = "2.0"

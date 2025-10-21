@@ -5,7 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Folder, FolderOpen, RefreshCw } from "lucide-vue-next";
 import prettyBytes from "pretty-bytes";
 import { useAsyncLoad } from "@/utils/loader";
-import type { FileInfo } from "@/pages/file-copy/components/file-operations";
+import type { FileInfo } from "@/pages/file-manager/components/file-operations";
 
 /**
  * 路由相关

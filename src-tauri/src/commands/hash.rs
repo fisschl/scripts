@@ -6,7 +6,7 @@ use tauri::command;
 
 /// 计算文件哈希值
 ///
-/// 使用 Blake3 算法计算文件的哈希值，并以 base32-crockford 格式返回。
+/// 使用 Blake3 算法计算文件的哈希值，并以 base58 格式返回。
 /// 适用于文件完整性校验和去重等场景。
 ///
 /// # 参数
@@ -15,7 +15,7 @@ use tauri::command;
 ///
 /// # 返回值
 ///
-/// * `Ok(String)` - 成功时返回 base32-crockford 编码的哈希值
+/// * `Ok(String)` - 成功时返回 base58 编码的哈希值
 /// * `Err(CommandError)` - 失败时返回错误描述
 ///
 /// # 行为
@@ -26,8 +26,8 @@ use tauri::command;
 /// * 哈希值不包含路径信息，仅基于文件内容
 #[command]
 pub async fn file_hash(file_path: String) -> Result<String, String> {
-    use base32::{Alphabet, encode};
     use blake3::{Hash, Hasher};
+    use bs58::encode;
     use tokio::fs::File;
     use tokio::io::{AsyncReadExt, BufReader};
 
@@ -62,9 +62,9 @@ pub async fn file_hash(file_path: String) -> Result<String, String> {
     let hash: Hash = hasher.finalize();
     let hash_bytes: [u8; 32] = hash.into();
 
-    // 使用base32-crockford编码哈希值并转换为小写
-    // base32-crockford编码具有更好的可读性和纠错能力
-    let encoded = encode(Alphabet::Crockford, &hash_bytes).to_lowercase();
+    // 使用base58编码哈希值
+    // base58编码在比特币等加密货币中广泛使用，具有较好的可读性和紧凑性
+    let encoded = encode(&hash_bytes).into_string();
 
     Ok(encoded)
 }
