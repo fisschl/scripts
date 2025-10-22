@@ -1,4 +1,4 @@
-import { watchImmediate, type EventHook } from "@vueuse/core";
+import { watchImmediate } from "@vueuse/core";
 import { cloneDeep, isEqual } from "lodash-es";
 import pLimit from "p-limit";
 
@@ -8,13 +8,11 @@ import pLimit from "p-limit";
  * @template T - 参数类型
  * @template R - 返回值类型
  */
-export interface AsyncLoadOptions<T, R> {
+export interface LoaderOptions<T, R> {
   /** 参数值，可以是响应式引用或getter函数 */
   params: MaybeRefOrGetter<T>;
   /** 获取数据的异步函数 */
   fetcher: (params: T) => Promise<R>;
-  /** 刷新控制器，用于手动触发数据刷新 */
-  refreshController?: EventHook;
 }
 
 /**
@@ -27,7 +25,7 @@ export interface AsyncLoadOptions<T, R> {
  * @param options - 配置选项
  * @returns 响应式引用，包含加载的结果数据
  */
-export function useAsyncLoad<T, R>(options: AsyncLoadOptions<T, R>): Ref<R | undefined> {
+export function useLoader<T, R>(options: LoaderOptions<T, R>) {
   const limit = pLimit(1);
 
   const params = computed(() => {
@@ -37,11 +35,17 @@ export function useAsyncLoad<T, R>(options: AsyncLoadOptions<T, R>): Ref<R | und
   });
 
   const result = ref<R>();
+  const isLoading = ref(false);
 
   const refresh = () => {
     limit(async () => {
-      const { fetcher } = options;
-      result.value = await fetcher(params.value);
+      try {
+        isLoading.value = true;
+        const { fetcher } = options;
+        result.value = await fetcher(params.value);
+      } finally {
+        isLoading.value = false;
+      }
     });
   };
 
@@ -50,9 +54,5 @@ export function useAsyncLoad<T, R>(options: AsyncLoadOptions<T, R>): Ref<R | und
     refresh();
   });
 
-  options.refreshController?.on(() => {
-    refresh();
-  });
-
-  return result;
+  return reactive({ result, refresh, isLoading });
 }
