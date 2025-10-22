@@ -129,9 +129,10 @@ pub fn copy_file(from: String, to: String, overwrite: Option<bool>) -> Result<()
 
     // 确保目标目录存在
     if let Some(parent) = to.parent()
-        && !parent.exists() {
-            fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {}", e))?;
-        }
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {}", e))?;
+    }
 
     // 复制文件
     fs::copy(from, to).map_err(|e| format!("复制文件失败: {}", e))?;
