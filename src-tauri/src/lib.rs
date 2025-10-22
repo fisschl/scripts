@@ -20,5 +20,5 @@ pub fn run() {
             commands::s3_atomic::clear_s3_client_cache
         ])
         .run(tauri::generate_context!())
-        .expect("Error while running tauri application.");
+        .expect("Something went wrong while running tauri application");
 }

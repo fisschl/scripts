@@ -116,7 +116,7 @@ pub async fn get_cached_s3_client(s3_instance_id: &str, app: &tauri::AppHandle) 
 
     let client = cache
         .try_get_with(s3_instance_id.to_string(), async move {
-            create_s3_client_from_config(s3_instance_id, &app).await
+            create_s3_client_from_config(s3_instance_id, app).await
         })
         .await
         .map_err(|e: Arc<anyhow::Error>| anyhow::anyhow!("{}", e))?;
