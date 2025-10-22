@@ -1,3 +1,4 @@
+import { createPinia } from "pinia";
 import { createApp } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
 import { routes } from "vue-router/auto-routes";
@@ -22,5 +23,8 @@ const router = createRouter({
   routes,
 });
 
+// 创建 Pinia 实例
+const pinia = createPinia();
+
 // 创建并挂载 Vue 应用
-createApp(App).use(router).mount("#app");
+createApp(App).use(router).use(pinia).mount("#app");
