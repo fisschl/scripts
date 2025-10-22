@@ -28,34 +28,25 @@ use tauri::command;
 pub async fn file_hash(file_path: String) -> Result<String, String> {
     use blake3::{Hash, Hasher};
     use bs58::encode;
-    use tokio::fs::File;
-    use tokio::io::{AsyncReadExt, BufReader};
+    use tokio::io::AsyncReadExt;
 
     let path = std::path::PathBuf::from(file_path);
-
-    // 创建Blake3哈希器
     let mut hasher = Hasher::new();
 
-    // 打开文件
-    let file = File::open(&path)
+    // 64KB
+    const HASH_BUFFER_SIZE: usize = 64 * 1024;
+
+    let mut file = tokio::fs::File::open(&path)
         .await
         .map_err(|e| format!("打开文件失败: {}", e))?;
-    let mut reader = BufReader::new(file);
 
-    // 定义缓冲区（8KB，适合大多数文件读取场景）
-    let mut buffer = [0; 8192];
-
-    // 分块读取文件并更新哈希
-    // 使用异步读取，避免阻塞线程
+    let mut buffer = vec![0u8; HASH_BUFFER_SIZE];
     loop {
-        let bytes_read = reader
-            .read(&mut buffer)
-            .await
-            .map_err(|e| format!("读取文件失败: {}", e))?;
-        if bytes_read == 0 {
-            break; // 文件读取完毕
-        }
-        hasher.update(&buffer[..bytes_read]);
+        match file.read(&mut buffer).await {
+            Ok(0) => break,
+            Ok(n) => hasher.update(&buffer[..n]),
+            Err(e) => return Err(format!("读取文件失败: {}", e)),
+        };
     }
 
     // 计算最终哈希值并转换为字节数组
