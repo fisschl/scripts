@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Folder, RefreshCw } from "lucide-vue-next";
+import { RefreshCw } from "lucide-vue-next";
 
 /**
  * 获取当前路由信息
@@ -11,12 +11,6 @@ const route = useRoute();
  */
 const examples = computed(() => {
   return [
-    {
-      name: "文件管理",
-      path: "/file-manager",
-      icon: markRaw(Folder),
-      isActive: route.path.startsWith("/file-manager"),
-    },
     {
       name: "S3 同步",
       path: "/s3-sync",
@@ -42,11 +36,7 @@ const activeExample = computed(() => {
       class="min-h-screen w-full"
       :class="$style.menu"
     >
-      <ElMenuItem
-        v-for="example in examples"
-        :key="example.name"
-        :index="example.path"
-      >
+      <ElMenuItem v-for="example in examples" :key="example.name" :index="example.path">
         <ElIcon>
           <component :is="example.icon" />
         </ElIcon>

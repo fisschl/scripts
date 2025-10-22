@@ -7,7 +7,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
-            commands::archive::compress_with_7z,
             commands::command_executor::execute_command_sync,
             commands::fs::list_directory,
             commands::fs::copy_file,

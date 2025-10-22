@@ -2,12 +2,7 @@
 import { cloneDeep, remove } from "lodash-es";
 import { Globe, Key, MapPin, Plus } from "lucide-vue-next";
 import { v7 as uuidv7 } from "uuid";
-import {
-  loadS3Instances,
-  S3InstanceZod,
-  saveS3Instances,
-  type S3Instance,
-} from "./instances";
+import { loadS3Instances, S3InstanceZod, saveS3Instances, type S3Instance } from "./instances";
 import type { FormRules } from "element-plus";
 
 interface Emits {
@@ -86,9 +81,7 @@ async function submitForm() {
   // 判断是编辑还是新增
   if (s3_instance_id) {
     // 编辑模式：根据 s3_instance_id 查找并更新现有实例
-    const item = instances.value.find(
-      (item) => item.s3_instance_id === s3_instance_id,
-    );
+    const item = instances.value.find((item) => item.s3_instance_id === s3_instance_id);
     if (item) Object.assign(item, form.value);
     else ElMessage.error("实例不存在");
   } else {
@@ -107,14 +100,8 @@ async function submitForm() {
 
 // 删除实例
 async function deleteInstance(instance: S3Instance) {
-  await ElMessageBox.confirm(
-    `确定删除 "${instance.endpoint_url}" 吗？`,
-    "删除确认",
-  );
-  remove(
-    instances.value,
-    (item) => item.s3_instance_id === instance.s3_instance_id,
-  );
+  await ElMessageBox.confirm(`确定删除 "${instance.endpoint_url}" 吗？`, "删除确认");
+  remove(instances.value, (item) => item.s3_instance_id === instance.s3_instance_id);
   await saveInstances();
   ElMessage.success("删除成功");
 }
@@ -141,34 +128,21 @@ async function deleteInstance(instance: S3Instance) {
     </div>
 
     <!-- 实例列表 -->
-    <ElEmpty
-      v-if="instances.length === 0"
-      description="暂无 S3 实例配置"
-      class="py-12"
-    />
+    <ElEmpty v-if="instances.length === 0" description="暂无 S3 实例配置" class="py-12" />
 
     <ElTable v-else :data="instances" border style="width: 100%" class="flex-1">
       <ElTableColumn type="index" label="序号" width="60" />
       <ElTableColumn prop="endpoint_url" label="Endpoint URL" min-width="200" />
       <ElTableColumn label="操作" width="150">
         <template #default="{ row }">
-          <ElButton type="primary" link @click="openEditForm(row)">
-            编辑
-          </ElButton>
-          <ElButton type="info" link @click="deleteInstance(row)">
-            删除
-          </ElButton>
+          <ElButton type="primary" link @click="openEditForm(row)"> 编辑 </ElButton>
+          <ElButton type="info" link @click="deleteInstance(row)"> 删除 </ElButton>
         </template>
       </ElTableColumn>
     </ElTable>
 
     <!-- 添加/编辑对话框 -->
-    <ElDialog
-      v-model="showFormDialog"
-      title="编辑 S3 实例"
-      width="500px"
-      append-to-body
-    >
+    <ElDialog v-model="showFormDialog" title="编辑 S3 实例" width="500px" append-to-body>
       <ElForm
         ref="form-ref"
         :model="form"
@@ -189,10 +163,7 @@ async function deleteInstance(instance: S3Instance) {
         </ElFormItem>
 
         <ElFormItem label="Access Key ID" prop="access_key_id">
-          <ElInput
-            v-model.trim="form.access_key_id"
-            placeholder="请输入 AWS Access Key ID"
-          >
+          <ElInput v-model.trim="form.access_key_id" placeholder="请输入 AWS Access Key ID">
             <template #prefix>
               <Key :size="16" />
             </template>
@@ -213,10 +184,7 @@ async function deleteInstance(instance: S3Instance) {
         </ElFormItem>
 
         <ElFormItem label="Region" prop="region">
-          <ElInput
-            v-model.trim="form.region"
-            placeholder="例如: tos-s3-cn-shanghai"
-          >
+          <ElInput v-model.trim="form.region" placeholder="例如: tos-s3-cn-shanghai">
             <template #prefix>
               <MapPin :size="16" />
             </template>
@@ -224,9 +192,7 @@ async function deleteInstance(instance: S3Instance) {
         </ElFormItem>
 
         <div class="flex justify-end">
-          <ElButton native-type="button" @click="showFormDialog = false">
-            取消
-          </ElButton>
+          <ElButton native-type="button" @click="showFormDialog = false"> 取消 </ElButton>
           <ElButton type="primary" native-type="submit"> 保存 </ElButton>
         </div>
       </ElForm>

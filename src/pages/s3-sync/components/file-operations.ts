@@ -30,10 +30,7 @@ export function getFileExtension(filePath: string): string {
     return "";
   }
 
-  const lastSlashIndex = Math.max(
-    filePath.lastIndexOf("/"),
-    filePath.lastIndexOf("\\"),
-  );
+  const lastSlashIndex = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
 
   // 确保最后一个点是在最后一个斜杠之后
   if (lastDotIndex < lastSlashIndex) {

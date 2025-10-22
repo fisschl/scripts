@@ -5,15 +5,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Store } from "@tauri-apps/plugin-store";
 import { merge } from "lodash-es";
 import { CloudDownload, CloudUpload, Database, Folder } from "lucide-vue-next";
-import {
-  boolean,
-  literal,
-  object,
-  string,
-  union,
-  type infer as Infer,
-} from "zod/mini";
-import type { FileInfo } from "@/pages/file-manager/components/file-operations";
+import { boolean, literal, object, string, union, type infer as Infer } from "zod/mini";
+import type { FileInfo } from "@/pages/s3-sync/components/file-operations";
 import S3InstanceSelector from "./components/S3InstanceSelector.vue";
 import type { S3Object } from "./components/s3-files";
 import type { FormRules } from "element-plus";
@@ -31,10 +24,7 @@ const FormDataZod = object({
   /** 远程目录路径 */
   remote_dir: string(),
   /** 同步方向 */
-  sync_direction: union([
-    literal("local-to-remote"),
-    literal("remote-to-local"),
-  ]),
+  sync_direction: union([literal("local-to-remote"), literal("remote-to-local")]),
   /** 是否删除多余文件 */
   delete_extras: boolean(),
 });
@@ -94,10 +84,7 @@ store.then(async (store) => {
  * @param rootDir - 根目录路径（用于计算相对路径）
  * @param currentDir - 当前扫描的目录路径（默认为根目录）
  */
-async function updateLocalFilePaths(
-  rootDir: string,
-  currentDir?: string,
-): Promise<void> {
+async function updateLocalFilePaths(rootDir: string, currentDir?: string): Promise<void> {
   const scanDir = currentDir || rootDir;
   const files = await invoke<FileInfo[]>("list_directory", { path: scanDir });
 
@@ -351,11 +338,7 @@ async function startSync() {
 
     // 2. 获取本地和远程文件路径列表
     await updateLocalFilePaths(formData.local_dir);
-    await updateRemoteFilePaths(
-      formData.s3_instance_id,
-      formData.bucket,
-      remotePrefix,
-    );
+    await updateRemoteFilePaths(formData.s3_instance_id, formData.bucket, remotePrefix);
 
     // 3. 根据同步方向执行不同的逻辑
     switch (formData.sync_direction) {
@@ -383,11 +366,7 @@ async function startSync() {
 
         // 删除远程多余文件（如果启用）
         if (formData.delete_extras && remotePaths.size > 0) {
-          await deleteRemoteExtraFiles(
-            formData.s3_instance_id,
-            formData.bucket,
-            remotePrefix,
-          );
+          await deleteRemoteExtraFiles(formData.s3_instance_id, formData.bucket, remotePrefix);
         }
 
         ElMessage.success("S3 同步完成（本地 → 远程）");
@@ -517,18 +496,10 @@ async function startSync() {
 
     <ElRow v-if="localPaths.size > 0 || remotePaths.size > 0" class="my-6">
       <ElCol :span="12">
-        <ElStatistic
-          class="text-center"
-          title="本地文件数量"
-          :value="localPaths.size"
-        />
+        <ElStatistic class="text-center" title="本地文件剩余" :value="localPaths.size" />
       </ElCol>
       <ElCol :span="12">
-        <ElStatistic
-          class="text-center"
-          title="远程文件数量"
-          :value="remotePaths.size"
-        />
+        <ElStatistic class="text-center" title="远程文件剩余" :value="remotePaths.size" />
       </ElCol>
     </ElRow>
   </div>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { HardDrive, Settings } from "lucide-vue-next";
-import { loadS3Instances } from "./instances";
+import { loadS3Instances, type S3Instance } from "./instances";
 import S3ConfigDrawer from "./S3ConfigDrawer.vue";
 
 interface Props {
