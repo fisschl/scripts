@@ -1,5 +1,5 @@
 import { Store } from "@tauri-apps/plugin-store";
-import { remove } from "lodash-es";
+import { identity, remove } from "lodash-es";
 import { defineStore } from "pinia";
 import { array, type infer as Infer } from "zod/mini";
 import { SyncPlanZod, type SyncPlan } from "./sync-plan";
@@ -18,11 +18,9 @@ const store = Store.load("sync-plans.json");
  * 负责同步方案的增删改查和持久化存储
  */
 export const useS3SyncStore = defineStore("s3Sync", {
-  state: (): {
+  state: () => ({
     /** 同步方案列表状态 */
-    syncPlans: SyncPlan[];
-  } => ({
-    syncPlans: [],
+    syncPlans: identity<SyncPlan[]>([]),
   }),
 
   actions: {
