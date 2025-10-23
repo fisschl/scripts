@@ -66,6 +66,13 @@ async function handleSave() {
   await formRef.value?.validate();
   const { id } = formData.value;
 
+  // 规范化 remote_dir
+  if (formData.value.remote_dir) {
+    formData.value.remote_dir = `${formData.value.remote_dir}/`
+      .replace(/^[\\/]+/, "")
+      .replaceAll(/[\\/]+/g, "/");
+  }
+
   const handleSuccess = async (item: SyncPlan) => {
     await store.persistPlans();
     visible.value = false;

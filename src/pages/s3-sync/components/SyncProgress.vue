@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
-import { CloudDownload, CloudUpload } from "lucide-vue-next";
+import { ArrowDown, ArrowUp } from "lucide-vue-next";
 import type { FileInfo } from "./file-operations";
 import type { S3Object } from "./s3-files";
 import type { SyncPlan } from "./sync-plan";
@@ -9,8 +9,6 @@ import type { SyncPlan } from "./sync-plan";
 const props = defineProps<{
   plan: SyncPlan;
 }>();
-
-const visible = defineModel<boolean>("visible");
 
 // 响应式路径集合
 const localPaths = reactive(new Set<string>());
@@ -166,22 +164,25 @@ async function deleteRemoteExtraFiles(
   }
 }
 
+const handleOpen = () => {
+  localPaths.clear();
+  remotePaths.clear();
+  syncing.value = true;
+};
+
 /**
  * 执行从本地到远程的同步（上传）
  */
 async function syncLocalToRemote() {
-  syncing.value = true;
-
   try {
-    const remotePrefix = `${props.plan.remote_dir}/`
-      .replace(/^[\\/]+/, "")
-      .replaceAll(/[\\/]+/g, "/");
-
-    localPaths.clear();
-    remotePaths.clear();
+    handleOpen();
 
     await updateLocalFilePaths(props.plan.local_dir);
-    await updateRemoteFilePaths(props.plan.s3_instance_id, props.plan.bucket, remotePrefix);
+    await updateRemoteFilePaths(
+      props.plan.s3_instance_id,
+      props.plan.bucket,
+      props.plan.remote_dir,
+    );
 
     if (localPaths.size === 0 && remotePaths.size === 0) {
       ElMessage.success("本地和远程都没有文件，无需操作");
@@ -197,12 +198,16 @@ async function syncLocalToRemote() {
         props.plan.local_dir,
         props.plan.s3_instance_id,
         props.plan.bucket,
-        remotePrefix,
+        props.plan.remote_dir,
       );
     }
 
     if (remotePaths.size > 0) {
-      await deleteRemoteExtraFiles(props.plan.s3_instance_id, props.plan.bucket, remotePrefix);
+      await deleteRemoteExtraFiles(
+        props.plan.s3_instance_id,
+        props.plan.bucket,
+        props.plan.remote_dir,
+      );
     }
 
     ElMessage.success("S3 同步完成（本地 → 远程）");
@@ -218,18 +223,15 @@ async function syncLocalToRemote() {
  * 执行从远程到本地的同步（下载）
  */
 async function syncRemoteToLocal() {
-  syncing.value = true;
-
   try {
-    const remotePrefix = `${props.plan.remote_dir}/`
-      .replace(/^[\\/]+/, "")
-      .replaceAll(/[\\/]+/g, "/");
-
-    localPaths.clear();
-    remotePaths.clear();
+    handleOpen();
 
     await updateLocalFilePaths(props.plan.local_dir);
-    await updateRemoteFilePaths(props.plan.s3_instance_id, props.plan.bucket, remotePrefix);
+    await updateRemoteFilePaths(
+      props.plan.s3_instance_id,
+      props.plan.bucket,
+      props.plan.remote_dir,
+    );
 
     if (localPaths.size === 0 && remotePaths.size === 0) {
       ElMessage.success("本地和远程都没有文件，无需操作");
@@ -245,7 +247,7 @@ async function syncRemoteToLocal() {
         props.plan.local_dir,
         props.plan.s3_instance_id,
         props.plan.bucket,
-        remotePrefix,
+        props.plan.remote_dir,
       );
     }
 
@@ -264,29 +266,24 @@ async function syncRemoteToLocal() {
 </script>
 
 <template>
-  <ElDialog
-    v-model="visible"
-    title="同步文件"
-    width="500px"
-    :close-on-click-modal="false"
-    :close-on-press-escape="false"
-  >
-    <div class="flex justify-center">
-      <ElButton type="primary" @click="syncRemoteToLocal">
-        <CloudDownload :size="20" class="mr-2" />
-        从远程到本地
-      </ElButton>
-
-      <ElButton type="success" @click="syncLocalToRemote">
-        <CloudUpload :size="20" class="mr-2" />
-        从本地到远程
-      </ElButton>
+  <div v-if="!syncing" class="flex items-center">
+    <ElButton @click="syncRemoteToLocal">
+      <ArrowDown :size="20" class="mr-2" />
+      拉取
+    </ElButton>
+    <ElButton @click="syncLocalToRemote">
+      <ArrowUp :size="20" class="mr-2" />
+      推送
+    </ElButton>
+  </div>
+  <div v-else class="flex items-center gap-6 font-mono text-lg">
+    <div class="flex items-center gap-2">
+      <ArrowUp :size="20" />
+      {{ localPaths.size }}
     </div>
-
-    <template #footer>
-      <div class="flex justify-end">
-        <ElButton :disabled="syncing" @click="visible = false">关闭</ElButton>
-      </div>
-    </template>
-  </ElDialog>
+    <div class="flex items-center gap-2">
+      <ArrowDown :size="20" />
+      {{ remotePaths.size }}
+    </div>
+  </div>
 </template>
