@@ -5,7 +5,7 @@ import { Database, Folder } from "lucide-vue-next";
 import { v7 } from "uuid";
 import { useS3SyncStore } from "./s3-sync-store";
 import S3InstanceSelector from "./S3InstanceSelector.vue";
-import { SyncPlanZod, type SyncPlan } from "./sync-plan";
+import { SyncPlanZod, type SyncPlan } from "./types";
 import type { FormRules } from "element-plus";
 
 const props = defineProps<{

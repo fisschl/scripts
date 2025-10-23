@@ -1,18 +1,6 @@
 /**
- * 文件系统条目信息
- *
- * 表示文件或目录的基本元数据信息
+ * S3 同步模块工具函数
  */
-export interface FileInfo {
-  /** 条目的完整路径 */
-  path: string;
-  /** 是否为目录 */
-  is_dir: boolean;
-  /** 文件大小（字节），目录通常为 0 */
-  size: number;
-  /** 最后修改时间（ISO 8601 格式） */
-  last_modified: string;
-}
 
 /**
  * 获取文件扩展名

@@ -2,9 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
 import { ArrowDown, ArrowUp } from "lucide-vue-next";
-import type { FileInfo } from "./file-operations";
-import type { S3Object } from "./s3-files";
-import type { SyncPlan } from "./sync-plan";
+import type { FileInfo, S3Object, SyncPlan } from "./types";
 
 const props = defineProps<{
   plan: SyncPlan;

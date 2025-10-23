@@ -3,7 +3,7 @@ import { Plus } from "lucide-vue-next";
 import { useS3SyncStore } from "./components/s3-sync-store";
 import SyncPlanDialog from "./components/SyncPlanDialog.vue";
 import SyncProgress from "./components/SyncProgress.vue";
-import type { SyncPlan } from "./components/sync-plan";
+import type { SyncPlan } from "./components/types";
 
 // 使用S3同步方案store
 const s3SyncStore = useS3SyncStore();

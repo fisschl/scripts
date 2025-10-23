@@ -2,7 +2,7 @@ import { Store } from "@tauri-apps/plugin-store";
 import { identity, remove } from "lodash-es";
 import { defineStore } from "pinia";
 import { array, type infer as Infer } from "zod/mini";
-import { SyncPlanZod, type SyncPlan } from "./sync-plan";
+import { SyncPlanZod, type SyncPlan } from "./types";
 
 /** 同步方案数组 Zod 模式定义 */
 const SyncPlansArrayZod = array(SyncPlanZod);
