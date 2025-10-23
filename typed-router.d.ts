@@ -30,13 +30,6 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/file-manager/': RouteRecordInfo<
-      '/file-manager/',
-      '/file-manager',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
     '/s3-sync/': RouteRecordInfo<
       '/s3-sync/',
       '/s3-sync',
@@ -60,12 +53,6 @@ declare module 'vue-router/auto-routes' {
     'src/pages/index.vue': {
       routes:
         | '/'
-      views:
-        | never
-    }
-    'src/pages/file-manager/index.vue': {
-      routes:
-        | '/file-manager/'
       views:
         | never
     }

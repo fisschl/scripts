@@ -53,8 +53,4 @@ const activeExample = computed(() => {
 .aside {
   width: 220px;
 }
-
-.aside .menu {
-  --el-menu-item-height: 2.8rem;
-}
 </style>

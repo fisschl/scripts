@@ -136,7 +136,7 @@ async function deleteInstance(instance: S3Instance) {
       <ElTableColumn label="操作" width="150">
         <template #default="{ row }">
           <ElButton type="primary" link @click="openEditForm(row)"> 编辑 </ElButton>
-          <ElButton type="info" link @click="deleteInstance(row)"> 删除 </ElButton>
+          <ElButton link @click="deleteInstance(row)"> 删除 </ElButton>
         </template>
       </ElTableColumn>
     </ElTable>
