@@ -28,3 +28,7 @@ node_modules
 
 # Claude
 .claude
+
+# Auto-generated files
+auto-imports.d.ts
+components.d.ts
