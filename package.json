@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
-    "lint": "oxlint --fix && eslint --fix && vue-tsc --noEmit"
+    "lint": "oxlint --fix && eslint --fix && vue-tsc --build"
   },
   "dependencies": {
     "@fontsource-variable/fira-code": "^5.2.7",
@@ -45,7 +45,6 @@
     "@types/lodash-es": "^4.17.12",
     "eslint": "^9.38.0",
     "eslint-plugin-oxlint": "^1.24.0",
-    "jiti": "^2.6.1",
     "oxlint": "^1.24.0",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.7.1",
