@@ -1,96 +1,106 @@
-# 工具箱 - 多功能桌面应用
+# Deno 实用脚本集
 
-一个基于 Tauri + Vue 3 + TypeScript 构建的多功能桌面工具箱应用，集成了多种实用工具。
+这是一个用Deno编写的实用脚本集合，提供了文件处理和压缩相关的常用功能。
 
-## 🛠️ 功能特性
+## 📋 项目概述
 
-### 📁 文件管理工具
-- 本地文件浏览和管理
-- 文件操作功能
-- 简洁直观的用户界面
+本项目包含多个Deno脚本，用于简化日常文件管理任务：
 
-### ☁️ S3 同步工具
-- AWS S3 实例配置管理
-- 本地与云端文件同步
-- 文件路径更新和管理
-- 并行处理文件和目录
+- **文件压缩与删除**：自动将文件/目录压缩为7z格式并可选删除源文件
+- **文件复制与重命名**：根据文件内容哈希值批量重命名复制文件
 
-### 🔍 文件哈希工具
-- 计算文件的 Blake3 哈希值
-- 通过文件选择器选择文件
-- 显示哈希计算结果
+## 🛠️ 前提条件
 
-## 🚀 技术栈
+- **Deno**：确保已安装Deno运行时环境
+  - 下载地址：https://deno.com/
+  - 安装命令：`winget install denoland.deno`（Windows）或使用其他包管理器
 
-- **前端框架**: Vue 3 + TypeScript
-- **UI 组件库**: Element Plus
-- **图标库**: Lucide Vue Next
-- **构建工具**: Vite
-- **桌面运行时**: Tauri (Rust)
-- **样式方案**: Tailwind CSS
+- **7-Zip**：用于运行压缩脚本
+  - 下载地址：https://www.7-zip.org/
+  - 安装命令：`winget install 7zip.7zip`（Windows）
 
-## 📦 安装和运行
+## 📁 脚本列表
 
-### 开发环境
+### 1. compress_and_delete.ts
 
+**功能说明**：
+- 将当前目录下所有一级子目录和文件使用7z压缩成压缩包
+- 压缩完成后自动删除对应的源文件或目录
+- 智能检测7z安装位置
+
+**安全特性**：
+- 跳过隐藏文件/目录（以点开头）
+- 跳过TypeScript文件（.ts扩展名）
+- 压缩文件已存在时自动跳过
+- 仅在压缩成功后才删除源文件/目录
+
+**使用方法**：
 ```bash
-bun install
-
-# 启动开发服务器
-bun run tauri dev
-
-# 构建生产版本
-bun run tauri build
+deno run --allow-run --allow-read --allow-write --allow-env scripts/compress_and_delete.ts
 ```
 
-### 生产构建
+### 2. file_copy_and_rename.ts
 
+**功能说明**：
+- 将源目录中的特定类型文件复制到目标目录
+- 使用Blake3哈希值和Base58编码重命名文件
+- 支持递归扫描子目录
+- 支持文件类型过滤
+- 支持复制或剪切模式
+
+**安全特性**：
+- 跳过隐藏文件/目录
+- 目标文件已存在时自动跳过
+- 仅在复制成功后才删除源文件（剪切模式）
+
+**配置方法**：
+修改脚本顶部的常量：
+- `SOURCE_PATH`：源目录路径
+- `TARGET_PATH`：目标目录路径
+- `EXTENSIONS`：要处理的文件扩展名数组
+- `MOVE_AFTER_COPY`：是否在复制后删除源文件
+
+**使用方法**：
 ```bash
-# 构建应用
-npm run tauri build
-
-# 构建完成后，应用位于 src-tauri/target/release/ 目录
+deno run --allow-read --allow-write --allow-env scripts/file_copy_and_rename.ts
 ```
 
-## 🔧 开发指南
+## 📦 安装依赖
 
-### 项目结构
+这些脚本使用了Deno标准库中的包，首次运行时会自动下载依赖。
 
-- `src/` - 前端源代码
-  - `pages/` - 各个工具页面
-    - `file-manager/` - 文件管理功能
-    - `s3-sync/` - S3 同步功能
-    - `index.vue` - 主页
-  - `components/` - 可复用组件
-  - `utils/` - 工具函数
-- `src-tauri/` - Tauri 后端代码
-  - `src/commands/` - Rust 命令实现
+主要依赖：
+- `@std/path`：路径处理
+- `@std/crypto`：文件哈希计算
+- `@std/encoding`：Base58编码
 
-### 添加新功能
+## 🔒 权限说明
 
-1. 在 `src/pages/` 目录创建新的 Vue 组件或目录
-2. 在主页 `index.vue` 中添加对应功能的入口
-3. 如需后端功能，在 `src-tauri/src/commands/` 目录创建相应的 Rust 模块
-4. 在 `src-tauri/src/commands.rs` 中注册新命令
+### compress_and_delete.ts 所需权限
+- `--allow-run`：执行7z外部命令
+- `--allow-read`：读取文件系统信息
+- `--allow-write`：删除源文件/目录
+- `--allow-env`：访问用户目录环境变量
 
-### 开发规范
+### file_copy_and_rename.ts 所需权限
+- `--allow-read`：读取源目录文件和计算哈希值
+- `--allow-write`：向目标目录写入文件
+- `--allow-env`：访问环境变量
 
-- 使用 TypeScript 进行类型安全的开发
-- 使用 Tailwind CSS 进行样式开发
-- 确保代码符合 ESLint 和 Prettier 规范
-- 对关键功能添加适当的注释
+## 📝 使用提示
 
-## 🤝 贡献
+1. **备份重要数据**：在运行删除或移动操作前，请确保已备份重要文件
 
-欢迎提交 Issue 和 Pull Request！
+2. **测试运行**：建议先在小批量文件上测试脚本功能
+
+3. **权限控制**：严格遵循最小权限原则，仅授予脚本必要的权限
+
+4. **自定义配置**：根据实际需求修改脚本中的配置参数
+
+## 🤝 贡献指南
+
+欢迎提交Issue和Pull Request来改进这些脚本！
 
 ## 📄 许可证
 
-本项目基于 MIT 许可证开源 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 🙏 致谢
-
-- [Tauri](https://tauri.app/) - 提供优秀的桌面应用框架
-- [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
-- [Element Plus](https://element-plus.org/) - 丰富的 UI 组件库
-- [Tailwind CSS](https://tailwindcss.com/) - 实用的 CSS 框架
+本项目采用MIT许可证 - 详情请查看[LICENSE](LICENSE)文件

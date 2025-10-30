@@ -1,30 +1,75 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Claude AI configuration
+.claude/
 
-# Dependencies
-node_modules
+# Rust build artifacts
+/target/
+Cargo.lock
 
-# Build outputs
-/dist
-/dist-ssr
-*.local
-/src-tauri/target
-/src-tauri/gen
+# IDE and editor files
+.idea/
+*.swp
+*.swo
 
-# Editor directories and files
-.idea
+# OS generated files
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.DS_Store?
+._*
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
 
-# Claude
-.claude
+# 编译输出
+dist/
+build/
+out/
+
+# 缓存目录
+.cache/
+
+# 日志文件
+*.log
+
+# 环境变量文件
+.env
+
+# Rust specific
+rustc-ice*.txt
+rustc-panic*.txt
+crates-io-index/
+.rustup/
+cargo-install.lock
+.rust-analyzer/
+
+# 测试覆盖率
+coverage/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# 打包文件
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Configuration files (if they contain sensitive data)
+config.toml
+
+# Node specific (if any)
+node_modules/
+
+# Local development
+.local/
+
+# Profiling data
+*.prof
+
+# Documentation build
+/docs/target/
+book/
