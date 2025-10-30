@@ -267,10 +267,7 @@ async fn delete_item(item_path: &Path) -> Result<()> {
 fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
     // 定义要跳过的文件扩展名
     let skip_extensions = [
-        // 开发相关文件
-        "ts", "mjs", "rs", "exe", // 常见压缩文件格式
-        "7z", "zip", "rar", "tar", "gz", // Java 相关文件
-        "jar", "war", "ear",
+        "ts", "mjs", "rs", "exe", "7z", "zip", "rar", "tar", "gz", "jar", "war", "ear",
     ];
 
     // 使用函数式编程风格收集符合条件的项目
