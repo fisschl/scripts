@@ -52,9 +52,9 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use dirs::home_dir;
+use file_utils::utils::remove_path;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use tokio::fs;
 use walkdir::WalkDir;
 
 /// 命令行参数结构体
@@ -64,15 +64,23 @@ use walkdir::WalkDir;
 #[derive(Parser, Debug)]
 #[command(name = "compress_delete")]
 #[command(version = "0.1.0")]
-#[command(about = "使用 7-Zip 压缩文件和目录，然后删除原始项目")]
+#[command(about = "使用 7-Zip 压缩文件和目录,然后删除原始项目")]
 struct Args {
     /// 要处理的工作目录路径
     ///
     /// 指定包含要压缩和删除的项目的目录。
-    /// 工具只会处理该目录的直接子项，不会递归遍历。
-    /// 默认为当前目录（"."）。
+    /// 工具只会处理该目录的直接子项,不会递归遍历。
+    /// 默认为当前目录(".")。
     #[arg(short = 'd', long, default_value = ".")]
     directory: PathBuf,
+
+    /// 压缩文件密码
+    ///
+    /// 为压缩文件设置密码保护。
+    /// 启用后将同时加密文件内容和文件名(使用 -mhe=on 选项)。
+    /// 如果不指定此参数,则不使用密码加密。
+    #[arg(short = 'p', long)]
+    password: Option<String>,
 }
 
 /// 查找系统中安装的 7-Zip 可执行文件
@@ -137,23 +145,26 @@ fn find_7z_executable() -> Result<PathBuf> {
 /// 使用 7-Zip 压缩文件或目录
 ///
 /// 异步执行 7-Zip 命令来压缩指定的文件或目录。
-/// 使用默认压缩设置，提供良好的压缩比和速度平衡。
+/// 使用默认压缩设置,提供良好的压缩比和速度平衡。
 ///
 /// # 参数
 ///
 /// * `item_path` - 要压缩的文件或目录路径
 /// * `output_path` - 输出的 7z 压缩文件路径
 /// * `seven_zip_path` - 7-Zip 可执行文件路径
+/// * `password` - 可选的压缩文件密码
 ///
 /// # 返回值
 ///
 /// * `Ok(())` - 压缩成功
-/// * `Err(anyhow::Error)` - 压缩失败，包含错误信息
+/// * `Err(anyhow::Error)` - 压缩失败,包含错误信息
 ///
 /// # 7-Zip 参数说明
 ///
 /// - `a` - 添加到压缩文件模式
-/// - 使用默认压缩级别（通常为 5）
+/// - `-p<password>` - 设置密码
+/// - `-mhe=on` - 加密文件头(文件名)
+/// - 使用默认压缩级别(通常为 5)
 /// - 输出格式固定为 7z
 ///
 /// # 示例
@@ -162,15 +173,26 @@ fn find_7z_executable() -> Result<PathBuf> {
 /// let source = Path::new("./my_project");
 /// let output = Path::new("./my_project.7z");
 /// let seven_zip = find_7z_executable()?;
-/// compress_item(&source, &output, &seven_zip).await?;
+/// compress_item(&source, &output, &seven_zip, Some("mypassword")).await?;
 /// ```
-async fn compress_item(item_path: &Path, output_path: &Path, seven_zip_path: &Path) -> Result<()> {
+async fn compress_item(
+    item_path: &Path,
+    output_path: &Path,
+    seven_zip_path: &Path,
+    password: Option<&str>,
+) -> Result<()> {
     // 构建 7-Zip 命令参数
-    let args = vec![
+    let mut args = vec![
         "a".to_string(), // "a" 表示添加到压缩文件
         output_path.to_string_lossy().to_string(),
         item_path.to_string_lossy().to_string(),
     ];
+
+    // 如果指定了密码,添加密码参数和文件名加密选项
+    if let Some(pwd) = password {
+        args.push(format!("-p{}", pwd)); // 设置密码
+        args.push("-mhe=on".to_string()); // 加密文件头(文件名)
+    }
 
     println!("执行压缩: {} {}", seven_zip_path.display(), args.join(" "));
 
@@ -189,48 +211,6 @@ async fn compress_item(item_path: &Path, output_path: &Path, seven_zip_path: &Pa
         anyhow::bail!("7z 压缩失败: {}", stderr);
     }
 
-    Ok(())
-}
-
-/// 删除文件或目录
-///
-/// 根据路径类型自动选择删除方法：
-/// - 文件：使用 `remove_file`
-/// - 目录：使用 `remove_dir_all`（递归删除）
-///
-/// # 参数
-///
-/// * `item_path` - 要删除的文件或目录路径
-///
-/// # 返回值
-///
-/// * `Ok(())` - 删除成功
-/// * `Err(anyhow::Error)` - 删除失败，包含详细错误信息
-///
-/// # 安全性
-///
-/// 此函数会永久删除文件和目录，请确保：
-/// - 压缩文件已成功创建
-/// - 数据已备份或不再需要
-///
-/// # 示例
-///
-/// ```rust
-/// let path = Path::new("./old_project");
-/// delete_item(path).await?;
-/// ```
-async fn delete_item(item_path: &Path) -> Result<()> {
-    if item_path.is_file() {
-        // 删除单个文件
-        fs::remove_file(item_path)
-            .await
-            .with_context(|| format!("删除文件失败: {}", item_path.display()))?;
-    } else if item_path.is_dir() {
-        // 递归删除整个目录
-        fs::remove_dir_all(item_path)
-            .await
-            .with_context(|| format!("删除目录失败: {}", item_path.display()))?;
-    }
     Ok(())
 }
 
@@ -301,26 +281,27 @@ fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
 
 /// 处理单个项目
 ///
-/// 对单个文件或目录执行完整的压缩和删除流程：
+/// 对单个文件或目录执行完整的压缩和删除流程:
 /// 1. 生成同名的 .7z 压缩文件路径
-/// 2. 检查压缩文件是否已存在，存在则跳过
+/// 2. 检查压缩文件是否已存在,存在则跳过
 /// 3. 使用 7-Zip 压缩项目
 /// 4. 压缩成功后删除原始项目
 ///
 /// # 参数
 ///
 /// * `item_path` - 要处理的文件或目录路径
-/// * `work_directory` - 工作目录路径（用于存放压缩文件）
+/// * `work_directory` - 工作目录路径(用于存放压缩文件)
 /// * `seven_zip_path` - 7-Zip 可执行文件路径
+/// * `password` - 可选的压缩文件密码
 ///
 /// # 返回值
 ///
 /// * `Ok(())` - 处理成功
-/// * `Err(anyhow::Error)` - 处理失败，包含详细错误信息
+/// * `Err(anyhow::Error)` - 处理失败,包含详细错误信息
 ///
 /// # 安全性
 ///
-/// 此函数会永久删除原始文件，只有在压缩成功后才会执行删除操作。
+/// 此函数会永久删除原始文件,只有在压缩成功后才会执行删除操作。
 ///
 /// # 示例
 ///
@@ -328,12 +309,13 @@ fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
 /// let project = Path::new("./my_project");
 /// let work_dir = Path::new("./backup");
 /// let seven_zip = find_7z_executable()?;
-/// process_item(project, work_dir, &seven_zip).await?;
+/// process_item(project, work_dir, &seven_zip, Some("password")).await?;
 /// ```
 async fn process_item(
     item_path: &Path,
     work_directory: &Path,
     seven_zip_path: &Path,
+    password: Option<&str>,
 ) -> Result<()> {
     // 提取项目名称用于显示和生成输出文件名
     let item_name = item_path
@@ -356,15 +338,25 @@ async fn process_item(
     }
 
     // 使用 7-Zip 压缩项目
-    compress_item(item_path, &output_path, seven_zip_path).await?;
-    println!(
-        "压缩完成: {} -> {}",
-        item_name,
-        output_path.file_name().unwrap().to_string_lossy()
-    );
+    compress_item(item_path, &output_path, seven_zip_path, password).await?;
+
+    // 根据是否使用密码显示不同的提示信息
+    if password.is_some() {
+        println!(
+            "压缩完成(已加密): {} -> {}",
+            item_name,
+            output_path.file_name().unwrap().to_string_lossy()
+        );
+    } else {
+        println!(
+            "压缩完成: {} -> {}",
+            item_name,
+            output_path.file_name().unwrap().to_string_lossy()
+        );
+    }
 
     // 压缩成功后删除原始项目
-    delete_item(item_path).await?;
+    remove_path(item_path).await?;
     println!("删除原始项目: {}", item_name);
 
     Ok(())
@@ -406,6 +398,13 @@ async fn main() -> anyhow::Result<()> {
     // 显示程序标题和工作目录信息
     println!("{} 压缩并删除工具 {}", "=".repeat(15), "=".repeat(15));
     println!("工作目录: {}", work_directory.display());
+
+    // 显示密码设置状态
+    if args.password.is_some() {
+        println!("加密模式: 已启用(加密文件内容和文件名)");
+    } else {
+        println!("加密模式: 未启用");
+    }
     println!();
 
     // 收集要处理的项目（应用过滤规则）
@@ -422,9 +421,16 @@ async fn main() -> anyhow::Result<()> {
     // 查找系统安装的 7-Zip 可执行文件
     let seven_zip_path = find_7z_executable().context("找不到 7z 可执行文件")?;
 
-    // 逐个处理项目，单个失败不影响其他项目
+    // 逐个处理项目,单个失败不影响其他项目
     for item in items {
-        if let Err(e) = process_item(&item, &work_directory, &seven_zip_path).await {
+        if let Err(e) = process_item(
+            &item,
+            &work_directory,
+            &seven_zip_path,
+            args.password.as_deref(),
+        )
+        .await
+        {
             println!("处理 {} 失败: {}", item.display(), e);
         }
     }
