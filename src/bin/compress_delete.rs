@@ -62,7 +62,6 @@ use dirs::home_dir;
 use file_utils::utils::remove_path;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use walkdir::WalkDir;
 
 /// 命令行参数结构体
 ///
@@ -257,29 +256,26 @@ fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
         "ts", "mjs", "rs", "exe", "7z", "zip", "rar", "tar", "gz", "jar", "war", "ear",
     ];
 
-    // 使用函数式编程风格收集符合条件的项目
-    let items: Vec<PathBuf> = WalkDir::new(work_directory)
-        .max_depth(1) // 只处理直接子项，不递归
-        .into_iter()
-        .filter_map(Result::ok) // 先处理遍历错误
-        .filter(|e| {
-            // 跳过工作目录本身
-            if e.depth() == 0 {
+    // 使用 std::fs::read_dir 读取目录项，只遍历首层
+    let items: Vec<PathBuf> = std::fs::read_dir(work_directory)
+        .with_context(|| format!("无法读取目录: {}", work_directory.display()))?
+        .filter_map(|entry| entry.ok()) // 忽略读取错误的项
+        .map(|entry| entry.path())
+        .filter(|path| {
+            // 获取文件名
+            let file_name = match path.file_name().and_then(|n| n.to_str()) {
+                Some(name) => name,
+                None => return false,
+            };
+
+            // 跳过隐藏文件/目录
+            if file_name.starts_with('.') {
                 return false;
             }
-            let name = e.file_name().to_string_lossy();
-            // 跳过隐藏文件/目录
-            !name.starts_with('.')
-        })
-        .map(|entry| entry.path().to_path_buf())
-        .filter(|path| {
+
             // 跳过特定扩展名的文件（不带点，小写）
-            if let Some(ext) = path
-                .extension()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_lowercase())
-            {
-                !skip_extensions.contains(&ext.as_str())
+            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                !skip_extensions.contains(&ext.to_lowercase().as_str())
             } else {
                 true // 没有扩展名的文件不跳过
             }
