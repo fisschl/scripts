@@ -21,6 +21,7 @@
 //! ## 参数说明
 //!
 //! - `[--directory, -d] <DIRECTORY>`: 要处理的目录路径，默认为当前目录
+//! - `[--password, -p] <PASSWORD>`: 压缩文件密码，启用后将加密文件内容和文件名
 //!
 //! ## 示例
 //!
@@ -33,6 +34,12 @@
 //!
 //! # 使用短选项
 //! compress_delete -d ./projects
+//!
+//! # 使用密码加密压缩文件
+//! compress_delete --password mySecret123
+//!
+//! # 结合目录和密码参数
+//! compress_delete -d ./backup -p myPassword
 //! ```
 //!
 //! ## 工作流程
@@ -254,13 +261,16 @@ fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
     let items: Vec<PathBuf> = WalkDir::new(work_directory)
         .max_depth(1) // 只处理直接子项，不递归
         .into_iter()
-        .filter_entry(|e| {
+        .filter_map(Result::ok) // 先处理遍历错误
+        .filter(|e| {
+            // 跳过工作目录本身
+            if e.depth() == 0 {
+                return false;
+            }
             let name = e.file_name().to_string_lossy();
-
-            // 跳过工作目录本身和隐藏文件/目录
-            e.path() != work_directory && !name.starts_with('.')
+            // 跳过隐藏文件/目录
+            !name.starts_with('.')
         })
-        .filter_map(Result::ok) // 忽略遍历错误
         .map(|entry| entry.path().to_path_buf())
         .filter(|path| {
             // 跳过特定扩展名的文件（不带点，小写）
@@ -387,13 +397,11 @@ async fn main() -> anyhow::Result<()> {
     // 解析命令行参数，clap 会自动生成帮助信息
     let args = Args::parse();
 
-    // 获取工作目录路径
-    let work_directory = args.directory;
-
-    // 验证工作目录是否存在
-    if !work_directory.exists() {
-        anyhow::bail!("工作目录不存在: {}", work_directory.display());
-    }
+    // 获取工作目录路径并转换为绝对路径
+    let work_directory = args
+        .directory
+        .canonicalize()
+        .with_context(|| format!("无法访问工作目录: {}", args.directory.display()))?;
 
     // 显示程序标题和工作目录信息
     println!("{} 压缩并删除工具 {}", "=".repeat(15), "=".repeat(15));
