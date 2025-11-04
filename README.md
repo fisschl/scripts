@@ -2,14 +2,14 @@
 
 这是一个用Rust编写的实用文件处理工具集合，提供了文件压缩、复制和重命名的常用功能。
 
-## 📋 项目概述
+## 项目概述
 
 本项目包含两个主要的命令行工具：
 
 - **compress_delete**：使用7-Zip压缩文件和目录，然后删除原始项目
 - **file_copy_rename**：将文件从源目录复制到目标目录，使用哈希值重命名以避免重复
 
-## 🛠️ 前提条件
+## 前提条件
 
 - **Rust**：确保已安装Rust工具链
   - 下载地址：https://rustup.rs/
@@ -19,7 +19,7 @@
   - 下载地址：https://www.7-zip.org/
   - 安装命令：`winget install 7zip.7zip`（Windows）
 
-## � 安装方法
+## 安装方法
 
 ### 从源码构建
 
@@ -44,7 +44,7 @@ cargo run --bin compress_delete [参数]
 cargo run --bin file_copy_rename [参数]
 ```
 
-## �📁 工具列表
+## 工具列表
 
 ### 1. compress_delete
 
@@ -110,7 +110,7 @@ file_copy_rename -s ./source -t ./target -e "mp4,webm" -m
 - `[--extensions, -e] <EXTENSIONS>`: 文件扩展名（逗号分隔，不带点），默认为常见视频格式
 - `[--move, -m]`: 启用移动模式（复制后删除源文件）
 
-## 🔧 技术栈
+## 技术栈
 
 - **Rust**：高性能系统编程语言
 - **clap**：命令行参数解析
@@ -122,7 +122,7 @@ file_copy_rename -s ./source -t ./target -e "mp4,webm" -m
 - **which**：查找可执行文件
 - **dirs**：目录路径处理
 
-## 📝 使用提示
+## 使用提示
 
 1. **备份重要数据**：在运行删除或移动操作前，请确保已备份重要文件
 
@@ -132,10 +132,10 @@ file_copy_rename -s ./source -t ./target -e "mp4,webm" -m
 
 4. **7-Zip安装**：compress_delete工具需要系统安装7-Zip并在PATH中，或在标准安装位置
 
-## 🤝 贡献指南
+## 贡献指南
 
 欢迎提交Issue和Pull Request来改进这些工具！
 
-## 📄 许可证
+## 许可证
 
 本项目采用MIT许可证 - 详情请查看[LICENSE](LICENSE)文件
