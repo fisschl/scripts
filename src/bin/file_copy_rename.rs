@@ -261,7 +261,7 @@ async fn main() -> anyhow::Result<()> {
 
     // 处理收集到的文件
     for entry in files_to_process {
-        if let Err(e) = process_file(&entry.path(), &args.target, args.move_after_copy).await {
+        if let Err(e) = process_file(entry.path(), &args.target, args.move_after_copy).await {
             println!("处理 {} 失败: {}", entry.path().display(), e);
         }
     }
