@@ -59,7 +59,7 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use file_utils::utils::{calculate_file_hash, ensure_directory_exists};
+use file_utils::utils::{directory::ensure_directory_exists, hash::calculate_file_hash};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 

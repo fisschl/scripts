@@ -5,8 +5,3 @@
 pub mod directory;
 pub mod filesystem;
 pub mod hash;
-
-// 重新导出公共API，保持向后兼容
-pub use directory::ensure_directory_exists;
-pub use filesystem::remove_path;
-pub use hash::calculate_file_hash;

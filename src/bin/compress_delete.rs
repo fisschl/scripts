@@ -59,7 +59,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use dirs::home_dir;
-use file_utils::utils::remove_path;
+use file_utils::utils::filesystem::remove_path;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
