@@ -59,7 +59,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use dirs::home_dir;
-use file_utils::utils::filesystem::remove_path;
+use file_utils::utils::filesystem::{get_file_extension, remove_path};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
@@ -274,8 +274,9 @@ fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
             }
 
             // 跳过特定扩展名的文件（不带点，小写）
-            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                !skip_extensions.contains(&ext.to_lowercase().as_str())
+            let ext = get_file_extension(path);
+            if !ext.is_empty() && skip_extensions.contains(&ext.as_str()) {
+                false
             } else {
                 true // 没有扩展名的文件不跳过
             }
@@ -425,18 +426,16 @@ async fn main() -> anyhow::Result<()> {
     // 查找系统安装的 7-Zip 可执行文件
     let seven_zip_path = find_7z_executable().context("找不到 7z 可执行文件")?;
 
-    // 逐个处理项目,单个失败不影响其他项目
+    // 逐个处理项目，遇到失败直接返回错误
     for item in items {
-        if let Err(e) = process_item(
+        process_item(
             &item,
             &work_directory,
             &seven_zip_path,
             args.password.as_deref(),
         )
         .await
-        {
-            println!("处理 {} 失败: {}", item.display(), e);
-        }
+        .with_context(|| format!("处理 {} 失败", item.display()))?;
     }
 
     // 显示完成信息
