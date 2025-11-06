@@ -59,7 +59,10 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use file_utils::utils::{directory::ensure_directory_exists, hash::calculate_file_hash};
+use file_utils::utils::{
+    filesystem::{ensure_directory_exists, get_file_extension},
+    hash::calculate_file_hash,
+};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -134,11 +137,7 @@ async fn process_file(file_path: &Path, target_dir: &Path, move_after_copy: bool
         .context("计算文件哈希失败")?;
 
     // 获取文件扩展名（不带点，小写）
-    let ext = file_path
-        .extension()
-        .and_then(|s| s.to_str())
-        .map(|s| s.to_lowercase())
-        .unwrap_or_default();
+    let ext = get_file_extension(file_path);
 
     // 生成目标文件名
     let target_filename = if ext.is_empty() {
@@ -244,12 +243,7 @@ async fn main() -> anyhow::Result<()> {
         .filter(|entry| entry.file_type().is_file()) // 只要文件
         .filter_map(|entry| {
             // 检查文件扩展名（不带点，小写）
-            let ext = entry
-                .path()
-                .extension()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_lowercase())
-                .unwrap_or_default();
+            let ext = get_file_extension(entry.path());
 
             if allowed_extensions.contains(&ext) {
                 Some(entry)
@@ -259,11 +253,11 @@ async fn main() -> anyhow::Result<()> {
         })
         .collect();
 
-    // 处理收集到的文件
+    // 处理收集到的文件，遇到失败直接返回错误
     for entry in files_to_process {
-        if let Err(e) = process_file(entry.path(), &args.target, args.move_after_copy).await {
-            println!("处理 {} 失败: {}", entry.path().display(), e);
-        }
+        process_file(entry.path(), &args.target, args.move_after_copy)
+            .await
+            .with_context(|| format!("处理 {} 失败", entry.path().display()))?;
     }
 
     println!("操作成功完成！");
