@@ -4,6 +4,8 @@
 //!
 //! ## 模块
 //!
+//! - `commands` - CLI 命令实现，包括压缩删除、文件复制重命名等功能
 //! - `utils` - 公共工具函数，包括哈希计算、文件系统操作等
 
+pub mod commands;
 pub mod utils;

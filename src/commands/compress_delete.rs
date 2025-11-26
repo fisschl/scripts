@@ -2,83 +2,30 @@
 //!
 //! 一个简洁高效的 Rust 命令行工具，用于压缩指定目录下的文件和子目录，
 //! 然后删除原始文件，仅保留压缩后的 7z 文件。
-//!
-//! ## 功能特性
-//!
-//! - **简洁设计**：只处理工作目录的直接子项，不递归遍历
-//! - **智能过滤**：自动跳过隐藏文件、开发文件和常见压缩文件
-//! - **7-Zip 集成**：使用系统安装的 7-Zip 进行压缩，默认设置
-//! - **自动清理**：压缩成功后自动删除原始项目
-//! - **错误处理**：单个项目失败不影响其他项目处理
-//! - **跨平台**：支持 Windows、macOS 和 Linux
-//!
-//! ## 使用方法
-//!
-//! ```bash
-//! compress_delete [OPTIONS]
-//! ```
-//!
-//! ## 参数说明
-//!
-//! - `[--directory, -d] <DIRECTORY>`: 要处理的目录路径，默认为当前目录
-//! - `[--password, -p] <PASSWORD>`: 压缩文件密码，启用后将加密文件内容和文件名
-//!
-//! ## 示例
-//!
-//! ```bash
-//! # 压缩当前目录下所有项目
-//! compress_delete
-//!
-//! # 指定工作目录
-//! compress_delete --directory ./backup
-//!
-//! # 使用短选项
-//! compress_delete -d ./projects
-//!
-//! # 使用密码加密压缩文件
-//! compress_delete --password mySecret123
-//!
-//! # 结合目录和密码参数
-//! compress_delete -d ./backup -p myPassword
-//! ```
-//!
-//! ## 工作流程
-//!
-//! 1. 扫描指定目录的直接子项
-//! 2. 过滤隐藏文件和指定扩展名的文件
-//! 3. 查找系统安装的 7-Zip 可执行文件
-//! 4. 对每个项目创建 `.7z` 压缩文件
-//! 5. 压缩成功后删除原始项目
-//!
-//! ## 注意事项
-//!
-//! - 此工具会永久删除原始文件，请确保有备份
-//! - 需要系统安装 7-Zip 并在 PATH 中，或在标准安装位置
-//! - 压缩文件与原始项目同名，扩展名为 `.7z`
 
+use crate::utils::filesystem::{get_file_extension, remove_path};
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::Args;
 use dirs::home_dir;
-use file_utils::utils::filesystem::{get_file_extension, remove_path};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 /// 命令行参数结构体
 ///
-/// 使用 clap 的 Derive API 自动解析命令行参数，
+/// 使用 clap 的 Args API 自动解析命令行参数，
 /// 提供类型安全和自动生成的帮助信息。
-#[derive(Parser, Debug)]
+#[derive(Args, Debug)]
 #[command(name = "compress_delete")]
 #[command(version = "0.1.0")]
 #[command(about = "使用 7-Zip 压缩文件和目录,然后删除原始项目")]
-struct Args {
+pub struct CompressDeleteArgs {
     /// 要处理的工作目录路径
     ///
     /// 指定包含要压缩和删除的项目的目录。
     /// 工具只会处理该目录的直接子项,不会递归遍历。
     /// 默认为当前目录(".")。
     #[arg(short = 'd', long, default_value = ".")]
-    directory: PathBuf,
+    pub directory: PathBuf,
 
     /// 压缩文件密码
     ///
@@ -86,7 +33,7 @@ struct Args {
     /// 启用后将同时加密文件内容和文件名(使用 -mhe=on 选项)。
     /// 如果不指定此参数,则不使用密码加密。
     #[arg(short = 'p', long)]
-    password: Option<String>,
+    pub password: Option<String>,
 }
 
 /// 查找系统中安装的 7-Zip 可执行文件
@@ -100,14 +47,7 @@ struct Args {
 ///
 /// * `Ok(PathBuf)` - 找到的 7z 可执行文件路径
 /// * `Err(anyhow::Error)` - 未找到 7z 可执行文件
-///
-/// # 示例
-///
-/// ```rust
-/// let seven_zip_path = find_7z_executable()?;
-/// println!("找到 7-Zip: {}", seven_zip_path.display());
-/// ```
-fn find_7z_executable() -> Result<PathBuf> {
+pub fn find_7z_executable() -> Result<PathBuf> {
     // 首先检查 PATH 环境变量中的 7z 命令
     // 这是最常见和最方便的方式
     if which::which("7z").is_ok() {
@@ -164,24 +104,7 @@ fn find_7z_executable() -> Result<PathBuf> {
 ///
 /// * `Ok(())` - 压缩成功
 /// * `Err(anyhow::Error)` - 压缩失败,包含错误信息
-///
-/// # 7-Zip 参数说明
-///
-/// - `a` - 添加到压缩文件模式
-/// - `-p<password>` - 设置密码
-/// - `-mhe=on` - 加密文件头(文件名)
-/// - 使用默认压缩级别(通常为 5)
-/// - 输出格式固定为 7z
-///
-/// # 示例
-///
-/// ```rust
-/// let source = Path::new("./my_project");
-/// let output = Path::new("./my_project.7z");
-/// let seven_zip = find_7z_executable()?;
-/// compress_item(&source, &output, &seven_zip, Some("mypassword")).await?;
-/// ```
-async fn compress_item(
+pub async fn compress_item(
     item_path: &Path,
     output_path: &Path,
     seven_zip_path: &Path,
@@ -242,15 +165,7 @@ async fn compress_item(
 ///
 /// * `Ok(Vec<PathBuf>)` - 符合条件的文件和目录路径列表
 /// * `Err(anyhow::Error)` - 扫描过程中的错误
-///
-/// # 示例
-///
-/// ```rust
-/// let work_dir = Path::new("./projects");
-/// let items = collect_items(work_dir)?;
-/// println!("找到 {} 个项目", items.len());
-/// ```
-fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
+pub fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
     // 定义要跳过的文件扩展名
     let skip_extensions = [
         "ts", "mjs", "rs", "exe", "7z", "zip", "rar", "tar", "gz", "jar", "war", "ear",
@@ -305,20 +220,7 @@ fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
 ///
 /// * `Ok(())` - 处理成功
 /// * `Err(anyhow::Error)` - 处理失败,包含详细错误信息
-///
-/// # 安全性
-///
-/// 此函数会永久删除原始文件,只有在压缩成功后才会执行删除操作。
-///
-/// # 示例
-///
-/// ```rust
-/// let project = Path::new("./my_project");
-/// let work_dir = Path::new("./backup");
-/// let seven_zip = find_7z_executable()?;
-/// process_item(project, work_dir, &seven_zip, Some("password")).await?;
-/// ```
-async fn process_item(
+pub async fn process_item(
     item_path: &Path,
     work_directory: &Path,
     seven_zip_path: &Path,
@@ -369,31 +271,24 @@ async fn process_item(
     Ok(())
 }
 
-/// 主函数
+/// 命令执行函数
 ///
-/// 程序入口点，负责协调整个压缩和删除流程：
-/// 1. 解析命令行参数
-/// 2. 验证工作目录
-/// 3. 收集要处理的项目
-/// 4. 查找 7-Zip 可执行文件
-/// 5. 逐个处理项目
-/// 6. 输出处理结果
+/// 负责协调整个压缩和删除流程：
+/// 1. 验证工作目录
+/// 2. 收集要处理的项目
+/// 3. 查找 7-Zip 可执行文件
+/// 4. 逐个处理项目
+/// 5. 输出处理结果
 ///
-/// # 错误处理
+/// # 参数
 ///
-/// - 工作目录不存在：程序退出并显示错误
-/// - 找不到 7-Zip：程序退出并提示安装
-/// - 单个项目处理失败：记录错误但继续处理其他项目
+/// * `args` - 命令行参数
 ///
 /// # 返回值
 ///
 /// * `Ok(())` - 程序成功执行
 /// * `Err(anyhow::Error)` - 程序执行失败
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // 解析命令行参数，clap 会自动生成帮助信息
-    let args = Args::parse();
-
+pub async fn run(args: CompressDeleteArgs) -> anyhow::Result<()> {
     // 获取工作目录路径并转换为绝对路径
     let work_directory = args
         .directory

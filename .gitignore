@@ -1,6 +1,9 @@
 # Claude AI configuration
 .claude/
 
+# Trae AI configuration
+.trae/
+
 # Rust build artifacts
 /target/
 Cargo.lock
