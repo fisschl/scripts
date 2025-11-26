@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use file_utils::commands::{compress_delete, file_copy_rename};
+use file_utils::commands::{compress_delete, file_copy_rename, tar_archive};
 
 /// 主命令结构体
 ///
@@ -28,6 +28,8 @@ enum Commands {
     CompressDelete(compress_delete::CompressDeleteArgs),
     /// 将文件从源目录复制到目标目录，使用哈希值重命名
     FileCopyRename(file_copy_rename::FileCopyRenameArgs),
+    /// 使用 tar 格式压缩或解压缩文件和目录
+    Tar(tar_archive::TarArchiveArgs),
 }
 
 /// 主函数
@@ -40,5 +42,6 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::CompressDelete(args) => compress_delete::run(args).await,
         Commands::FileCopyRename(args) => file_copy_rename::run(args).await,
+        Commands::Tar(args) => tar_archive::run(args).await,
     }
 }
