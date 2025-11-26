@@ -1,0 +1,16 @@
+[package]
+name = "file-utils"
+version = "0.1.0"
+edition = "2024"
+description = "从 Deno 脚本移植的文件工具集合"
+license = "MIT"
+
+[dependencies]
+anyhow = "1.0"
+blake3 = "1.8"
+bs58 = "0.5"
+clap = { version = "4.5", features = ["derive"] }
+dirs = "5.0"
+tokio = { version = "1.48", features = ["full"] }
+walkdir = "2.5"
+which = "8.0"
