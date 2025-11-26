@@ -23,7 +23,7 @@ use tokio::io::AsyncReadExt;
 /// # 技术细节
 ///
 /// - 使用 Blake3 哈希算法，提供高性能和安全性
-/// - 使用 8KB 缓冲区进行流式读取，支持大文件处理
+/// - 使用 64KB 缓冲区进行流式读取，优化大文件处理性能
 /// - Base58 编码避免在文件系统中出现无效字符
 ///
 /// # 示例
@@ -50,7 +50,7 @@ pub async fn calculate_file_hash<P: AsRef<Path>>(file_path: P) -> Result<String>
 
     // 创建 Blake3 哈希器
     let mut hasher = blake3::Hasher::new();
-    let mut buffer = [0; 8192]; // 8KB 缓冲区，平衡内存使用和性能
+    let mut buffer = [0; 65536]; // 64KB 缓冲区，优化大文件性能
 
     // 流式读取文件内容并更新哈希
     loop {
