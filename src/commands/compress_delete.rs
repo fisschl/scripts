@@ -57,9 +57,9 @@ pub fn find_7z_executable() -> Result<PathBuf> {
     // 检查常见的 Windows 安装路径，按优先级排序
     // 7-Zip 通常安装在 Program Files 目录下
     let common_paths = vec![
-        PathBuf::from(r"C:\Program Files\7-Zip\7z.exe"),
-        PathBuf::from(r"C:\Program Files (x86)\7-Zip\7z.exe"),
-        PathBuf::from(r"C:\7-Zip\7z.exe"),
+        PathBuf::from("C:\\Program Files\\7-Zip\\7z.exe"),
+        PathBuf::from("C:\\Program Files (x86)\\7-Zip\\7z.exe"),
+        PathBuf::from("C:\\7-Zip\\7z.exe"),
     ];
 
     // 首先检查常见安装路径
