@@ -4,6 +4,9 @@
 # Trae AI configuration
 .trae/
 
+# Qoder AI configuration
+.qoder/
+
 # Rust build artifacts
 /target/
 Cargo.lock
