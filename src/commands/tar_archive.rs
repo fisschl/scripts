@@ -14,16 +14,29 @@ use zstd::stream::{Decoder, Encoder};
 #[derive(Args, Debug)]
 #[command(name = "tar")]
 #[command(version = "0.1.0")]
-#[command(about = "使用 tar 格式压缩或解压缩文件和目录")]
+#[command(
+    about = "使用 tar 格式压缩或解压缩文件和目录",
+    long_about = "支持 tar.zst（tar + zstd）。当 SOURCE 为 .tar.zst 时执行解压，否则执行压缩。"
+)]
 pub struct TarArchiveArgs {
     /// 源路径：要压缩的文件/目录，或要解压的 .tar.zst 文件
     /// 如果是 .tar.zst 文件则执行解压，否则执行压缩
-    #[arg(value_name = "SOURCE")]
+    #[arg(
+        value_name = "SOURCE",
+        help = "源路径（文件/目录或 .tar.zst 归档）",
+        long_help = "当传入 .tar.zst 文件时，将在其所在目录解压；当传入文件或目录时，将在父目录输出同名 .tar.zst。"
+    )]
     pub source: PathBuf,
 
     /// 压缩级别 (1-22，默认 6)
     /// 仅在压缩时有效
-    #[arg(short = 'l', long, default_value = "6")]
+    #[arg(
+        short = 'l',
+        long,
+        default_value = "6",
+        help = "压缩级别 (1-22)",
+        long_help = "仅在压缩时有效。数值越大压缩比越高但速度越慢；推荐 6（默认）。"
+    )]
     pub level: i32,
 }
 

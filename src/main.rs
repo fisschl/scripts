@@ -13,7 +13,10 @@ use file_utils::commands::{compress_delete, file_copy_rename, tar_archive};
 #[derive(Parser, Debug)]
 #[command(name = "scripts")]
 #[command(version = "0.1.0")]
-#[command(about = "文件处理工具集")]
+#[command(
+    about = "文件处理工具集",
+    long_about = "多功能文件处理命令行工具。使用子命令 --help 查看详细说明。"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

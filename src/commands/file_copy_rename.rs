@@ -17,20 +17,37 @@ use walkdir::WalkDir;
 #[derive(Args, Debug)]
 #[command(name = "file_copy_rename")]
 #[command(version = "0.1.0")]
-#[command(about = "将文件从源目录复制到目标目录，使用哈希值重命名")]
+#[command(
+    about = "将文件从源目录复制到目标目录，使用哈希值重命名",
+    long_about = "递归遍历源目录，将匹配的文件复制到目标目录，并用 Blake3 哈希重命名以避免重复。可选移动模式在复制成功后删除源文件。"
+)]
 pub struct FileCopyRenameArgs {
     /// 源目录路径
     ///
     /// 包含要复制的文件的目录。工具会递归遍历这个目录。
     /// 默认为 "./source"。
-    #[arg(short = 's', long, default_value = "./source")]
+    #[arg(
+        short = 's',
+        long,
+        default_value = "./source",
+        value_name = "SOURCE_DIR",
+        help = "源目录",
+        long_help = "递归遍历该目录中的文件。默认 ./source。"
+    )]
     pub source: PathBuf,
 
     /// 目标目录路径
     ///
     /// 复制文件的输出目录。如果不存在会自动创建。
     /// 默认为 "./target"。
-    #[arg(short = 't', long, default_value = "./target")]
+    #[arg(
+        short = 't',
+        long,
+        default_value = "./target",
+        value_name = "TARGET_DIR",
+        help = "目标目录",
+        long_help = "复制到该目录；若不存在将自动创建。默认 ./target。"
+    )]
     pub target: PathBuf,
 
     /// 要处理的文件扩展名
@@ -38,14 +55,26 @@ pub struct FileCopyRenameArgs {
     /// 指定要处理的文件扩展名，多个扩展名用逗号分隔。
     /// 例如：mp4,webm,m4v
     /// 默认为常见视频格式。
-    #[arg(short = 'e', long, default_value = "mp4,webm,m4v,avi,mkv,mov")]
+    #[arg(
+        short = 'e',
+        long,
+        default_value = "mp4,webm,m4v,avi,mkv,mov",
+        value_name = "EXTENSIONS",
+        help = "要处理的扩展名列表",
+        long_help = "逗号分隔，不带点，大小写不敏感。例如：mp4,webm,m4v。"
+    )]
     pub extensions: String,
 
     /// 移动模式
     ///
     /// 启用后，复制成功会删除源文件（相当于移动操作）。
     /// 默认为禁用（仅复制）。
-    #[arg(short = 'm', long)]
+    #[arg(
+        short = 'm',
+        long,
+        help = "启用移动模式",
+        long_help = "开启后在复制成功后删除源文件（相当于移动）。默认关闭，仅复制不删除源文件。"
+    )]
     pub move_after_copy: bool,
 }
 

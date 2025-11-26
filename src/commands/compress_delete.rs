@@ -17,14 +17,24 @@ use std::process::Stdio;
 #[derive(Args, Debug)]
 #[command(name = "compress_delete")]
 #[command(version = "0.1.0")]
-#[command(about = "使用 7-Zip 压缩文件和目录,然后删除原始项目")]
+#[command(
+    about = "使用 7-Zip 压缩文件和目录,然后删除原始项目",
+    long_about = "将工作目录的直接子项压缩为 .7z 并删除原始文件。\n仅处理首层文件/目录（不递归），输出文件与原项同名，扩展名为 .7z。可选设置密码加密内容与文件名。"
+)]
 pub struct CompressDeleteArgs {
     /// 要处理的工作目录路径
     ///
     /// 指定包含要压缩和删除的项目的目录。
     /// 工具只会处理该目录的直接子项,不会递归遍历。
     /// 默认为当前目录(".")。
-    #[arg(short = 'd', long, default_value = ".")]
+    #[arg(
+        short = 'd',
+        long,
+        default_value = ".",
+        value_name = "DIRECTORY",
+        help = "工作目录路径",
+        long_help = "仅处理该目录的直接子项（不递归）。默认当前目录 (.)。"
+    )]
     pub directory: PathBuf,
 
     /// 压缩文件密码
@@ -32,7 +42,13 @@ pub struct CompressDeleteArgs {
     /// 为压缩文件设置密码保护。
     /// 启用后将同时加密文件内容和文件名(使用 -mhe=on 选项)。
     /// 如果不指定此参数,则不使用密码加密。
-    #[arg(short = 'p', long)]
+    #[arg(
+        short = 'p',
+        long,
+        value_name = "PASSWORD",
+        help = "压缩文件密码",
+        long_help = "启用后同时加密文件内容和文件名（-mhe=on）。不指定则不加密。"
+    )]
     pub password: Option<String>,
 }
 
