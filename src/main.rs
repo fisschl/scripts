@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use file_utils::commands::{compress_delete, file_copy_rename, tar_archive};
+use file_utils::commands::{compress_delete, file_copy_rename, find_unused_files, tar_archive};
 
 /// 主命令结构体
 ///
@@ -33,6 +33,8 @@ enum Commands {
     FileCopyRename(file_copy_rename::FileCopyRenameArgs),
     /// 使用 tar 格式压缩或解压缩文件和目录
     Tar(tar_archive::TarArchiveArgs),
+    /// 查找目录中未被使用的文件
+    FindUnusedFiles(find_unused_files::FindUnusedFilesArgs),
 }
 
 /// 主函数
@@ -46,5 +48,6 @@ async fn main() -> Result<()> {
         Commands::CompressDelete(args) => compress_delete::run(args).await,
         Commands::FileCopyRename(args) => file_copy_rename::run(args).await,
         Commands::Tar(args) => tar_archive::run(args).await,
+        Commands::FindUnusedFiles(args) => find_unused_files::run(args).await,
     }
 }
