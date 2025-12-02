@@ -113,6 +113,7 @@ fn get_relative_path(file_path: &Path, base_dir: &Path) -> Result<String> {
 ///
 /// # 参数
 ///
+/// * `searcher` - 可复用的搜索器实例
 /// * `file_path` - 要搜索的文件路径
 /// * `pattern` - 要搜索的文本（会被转义为字面量）
 ///
@@ -121,14 +122,15 @@ fn get_relative_path(file_path: &Path, base_dir: &Path) -> Result<String> {
 /// * `Ok(true)` - 找到匹配
 /// * `Ok(false)` - 未找到匹配
 /// * `Err` - 读取文件或匹配时出错
-fn search_in_file(file_path: &Path, pattern: &str) -> Result<bool> {
+fn search_in_file(
+    searcher: &mut grep_searcher::Searcher,
+    file_path: &Path,
+    pattern: &str,
+) -> Result<bool> {
     // 创建字面量匹配器（转义特殊字符）
     let matcher = RegexMatcherBuilder::new()
         .build(&regex::escape(pattern))
         .context("创建匹配器失败")?;
-
-    // 创建搜索器
-    let mut searcher = SearcherBuilder::new().build();
 
     // 用于记录是否找到匹配
     let mut found = false;
@@ -150,6 +152,7 @@ fn search_in_file(file_path: &Path, pattern: &str) -> Result<bool> {
 ///
 /// # 参数
 ///
+/// * `searcher` - 可复用的搜索器实例
 /// * `search_dir` - 要搜索的目录路径
 /// * `pattern` - 要搜索的文本（会被转义为字面量）
 /// * `code_extensions` - 代码文件扩展名集合
@@ -159,6 +162,7 @@ fn search_in_file(file_path: &Path, pattern: &str) -> Result<bool> {
 /// * `Ok(true)` - 在至少一个文件中找到匹配
 /// * `Ok(false)` - 在所有文件中都未找到匹配
 fn search_in_directory(
+    searcher: &mut grep_searcher::Searcher,
     search_dir: &Path,
     pattern: &str,
     code_extensions: &HashSet<String>,
@@ -189,7 +193,7 @@ fn search_in_directory(
         }
 
         // 在文件中搜索
-        match search_in_file(path, pattern) {
+        match search_in_file(searcher, path, pattern) {
             Ok(true) => return Ok(true), // 找到匹配，立即返回
             Ok(false) => continue,       // 未找到，继续下一个文件
             Err(_) => continue,          // 搜索出错，跳过该文件
@@ -203,6 +207,7 @@ fn search_in_directory(
 ///
 /// # 参数
 ///
+/// * `searcher` - 可复用的搜索器实例
 /// * `file_path` - 要检查的文件路径
 /// * `base_dir` - 文件所在的基础目录
 /// * `code_extensions` - 代码文件扩展名集合
@@ -211,6 +216,7 @@ fn search_in_directory(
 ///
 /// 返回文件的使用状态
 fn check_file_status(
+    searcher: &mut grep_searcher::Searcher,
     file_path: &Path,
     base_dir: &Path,
     code_extensions: &HashSet<String>,
@@ -225,12 +231,12 @@ fn check_file_status(
         .context("无效的文件名")?;
 
     // 第一步：搜索相对路径
-    if search_in_directory(base_dir, &relative_path, code_extensions)? {
+    if search_in_directory(searcher, base_dir, &relative_path, code_extensions)? {
         return Ok(FileStatus::Used);
     }
 
     // 第二步：搜索文件名
-    if search_in_directory(base_dir, file_name, code_extensions)? {
+    if search_in_directory(searcher, base_dir, file_name, code_extensions)? {
         return Ok(FileStatus::Uncertain);
     }
 
@@ -319,6 +325,9 @@ pub async fn run(args: FindUnusedFilesArgs) -> Result<()> {
 
     println!("找到 {} 个资源文件需要检查\n", files_to_check.len());
 
+    // 创建可复用的搜索器实例（只创建一次）
+    let mut searcher = SearcherBuilder::new().build();
+
     // 统计计数器和路径列表
     let mut used_count = 0;
     let mut unused_files: Vec<String> = Vec::new();
@@ -329,7 +338,7 @@ pub async fn run(args: FindUnusedFilesArgs) -> Result<()> {
         let relative_path = get_relative_path(&file_path, &args.dir)
             .with_context(|| format!("获取相对路径失败: {}", file_path.display()))?;
 
-        let status = check_file_status(&file_path, &args.dir, &code_extensions)
+        let status = check_file_status(&mut searcher, &file_path, &args.dir, &code_extensions)
             .with_context(|| format!("检查文件失败: {}", file_path.display()))?;
 
         match status {
