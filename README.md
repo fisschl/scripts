@@ -9,17 +9,18 @@
 - **compress-delete**：使用 7-Zip 压缩文件和目录，然后删除原始项目
 - **file-copy-rename**：将文件从源目录复制到目标目录，使用哈希值重命名以避免重复
 - **tar**：使用 tar.zst 格式压缩或解压缩文件和目录
+- **find-unused-files**：查找目录中未被引用的资源文件
 
 ## 前提条件
 
 - **Rust**：确保已安装 Rust 工具链
 
   - 下载地址：https://rustup.rs/
-  - 安装命令：`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+  - 安装方法：下载并运行 rustup-init.exe
 
 - **7-Zip**：用于运行 compress_delete 工具
   - 下载地址：https://www.7-zip.org/
-  - 安装命令：`winget install 7zip.7zip`（Windows）
+  - 安装命令：`winget install 7zip.7zip`
 
 ## 安装方法
 
@@ -33,24 +34,31 @@ cd scripts
 # 构建项目
 cargo build --release
 
-# 构建后的可执行文件位于 target/release/ 目录下
+# 构建后的可执行文件位于 target\release\scripts.exe
 ```
 
 ### 直接运行
 
 ```bash
-# 运行压缩删除工具
-cargo run -- compress-delete [参数]
+# 方式 1：通过 cargo 直接运行（推荐开发时）
+cargo run --release -- compress-delete [参数]
+cargo run --release -- file-copy-rename [参数]
+cargo run --release -- tar [参数]
+cargo run --release -- find-unused-files [参数]
 
-# 运行文件复制重命名工具
-cargo run -- file-copy-rename [参数]
-
-# 运行 tar 归档工具
-cargo run -- tar [参数]
-
-# 查看所有可用命令
-cargo run -- --help
+# 方式 2：运行编译后的可执行文件
+.\scripts.exe compress-delete
 ```
+
+### 安装到系统
+
+如果你想将工具安装到系统，可以使用以下命令：
+
+```bash
+cargo install --path .
+```
+
+安装后，`scripts` 命令将可在任何地方使用。
 
 ## 工具列表
 
@@ -61,12 +69,12 @@ cargo run -- --help
 - 将指定目录下的所有一级子目录和文件使用 7z 压缩成压缩包
 - 压缩完成后自动删除对应的源文件或目录
 - 智能检测 7z 安装位置
-- 跨平台支持（Windows、macOS、Linux）
 
 **安全特性**：
 
 - 跳过隐藏文件/目录（以点开头）
-- 跳过开发文件和常见压缩格式
+- 跳过开发文件（如 .git, node_modules, target 等）
+- 跳过常见压缩格式（.zip, .7z, .tar.gz 等）
 - 压缩文件已存在时自动跳过
 - 仅在压缩成功后才删除源文件/目录
 
@@ -123,7 +131,7 @@ scripts file-copy-rename -s ./source -t ./target -e "mp4,webm" -m
 
 - `[--source, -s] <DIRECTORY>`: 源目录路径，默认为 `./source`
 - `[--target, -t] <DIRECTORY>`: 目标目录路径，默认为 `./target`
-- `[--extensions, -e] <EXTENSIONS>`: 文件扩展名（逗号分隔，不带点），默认为常见视频格式
+- `[--extensions, -e] <EXTENSIONS>`: 文件扩展名（逗号分隔，不带点），默认为 `mp4,avi,mkv,mov,wmv,flv,webm`（常见视频格式）
 - `[--move, -m]`: 启用移动模式（复制后删除源文件）
 
 ### 3. tar
@@ -158,6 +166,47 @@ scripts tar ./my-folder -l 3
   - 当传入文件或目录时，执行压缩操作，输出同名 .tar.zst 文件到父目录
 - `[--level, -l] <LEVEL>`: 压缩级别（1-22，默认 6），仅在压缩时有效
 
+### 4. find-unused-files
+
+**功能说明**：
+
+- 扫描指定目录中的资源文件，检查是否在代码文件中被引用
+- 支持图片、样式、脚本等多种资源类型检查
+- 提供三种状态判断：已使用、未使用、待确认
+- 支持自动删除（谨慎使用）
+
+**判断规则**：
+
+1. **已使用**：找到相对路径引用（如 `img/logo.png`）
+2. **未使用**：相对路径和文件名都未找到
+3. **待定**：仅找到文件名但未找到相对路径
+
+**使用方法**：
+
+```bash
+# 检查 assets 目录中的图片资源，在 src 目录中搜索引用
+scripts find-unused-files --dir ./assets --resource-extensions png,jpg --code-extensions js,ts,css
+
+# 使用短选项
+scripts find-unused-files -d ./static -r "svg,gif" -c "html,vue,jsx"
+
+# 自动删除未使用的文件（⚠️ 危险操作，请谨慎使用）
+scripts find-unused-files --dir ./public --delete
+```
+
+**参数说明**：
+
+- `[-d, --dir] <DIR>`: 要检查的目录路径
+- `[-r, --resource-extensions] <EXTENSIONS>`: 资源文件扩展名，默认为 `png,jpg,jpeg,svg,gif,webp`
+- `[-c, --code-extensions] <EXTENSIONS>`: 代码文件扩展名，默认为 `js,ts,jsx,tsx,vue,html,css,scss,sass,less`
+- `[--delete]`: 自动删除未使用的文件（⚠️ 小心使用）
+
+**⚠️ 注意事项**：
+
+- 搜索结果可能有误报，建议人工核实后再删除
+- 动态引用的文件（如通过变量拼接的路径）可能无法检测到
+- 建议先在不加 `--delete` 参数的情况下运行，确认结果
+
 ## 技术栈
 
 - **Rust**：高性能系统编程语言
@@ -171,10 +220,12 @@ scripts tar ./my-folder -l 3
 - **anyhow**：错误处理
 - **which**：查找可执行文件
 - **dirs**：目录路径处理
+- **ignore**：gitignore 模式匹配
+- **grep-searcher/grep-regex**：高效文件内容搜索
 
 ## 使用提示
 
-1. **备份重要数据**：在运行删除或移动操作前，请确保已备份重要文件
+1. **⚠️ 备份重要数据**：在运行删除或移动操作前，请确保已备份重要文件
 
 2. **测试运行**：建议先在小批量文件上测试工具功能
 
@@ -182,10 +233,16 @@ scripts tar ./my-folder -l 3
 
 4. **7-Zip 安装**：compress-delete 命令需要系统安装 7-Zip 并在 PATH 中，或在标准安装位置
 
+5. **不可逆操作警告**：compress-delete 会永久删除源文件，请谨慎操作
+
+6. **find-unused-files 误报风险**：该工具检测结果可能有误报，删除文件前必须人工验证
+
+7. **动态引用检测限制**：通过变量拼接或动态加载的资源路径可能无法被正确识别
+
 ## 贡献指南
 
 欢迎提交 Issue 和 Pull Request 来改进这些工具！
 
 ## 许可证
 
-本项目采用 MIT 许可证 - 详情请查看[LICENSE](LICENSE)文件
+本项目采用 MIT 许可证 - 详情请查看 [LICENSE](LICENSE) 文件
