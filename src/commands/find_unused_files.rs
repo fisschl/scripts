@@ -148,25 +148,22 @@ fn search_in_file(
     Ok(found)
 }
 
-/// 在目录中搜索文本模式（仅在代码文件中搜索）
+/// 收集目录中的所有代码文件路径
 ///
 /// # 参数
 ///
-/// * `searcher` - 可复用的搜索器实例
 /// * `search_dir` - 要搜索的目录路径
-/// * `pattern` - 要搜索的文本（会被转义为字面量）
 /// * `code_extensions` - 代码文件扩展名集合
 ///
 /// # 返回值
 ///
-/// * `Ok(true)` - 在至少一个文件中找到匹配
-/// * `Ok(false)` - 在所有文件中都未找到匹配
-fn search_in_directory(
-    searcher: &mut grep_searcher::Searcher,
+/// 返回代码文件路径的向量
+fn collect_code_files(
     search_dir: &Path,
-    pattern: &str,
     code_extensions: &HashSet<String>,
-) -> Result<bool> {
+) -> Result<Vec<PathBuf>> {
+    let mut code_files = Vec::new();
+
     // 使用 ignore 库来遵循 .gitignore 规则
     let walker = WalkBuilder::new(search_dir)
         .git_ignore(true) // 遵循 .gitignore
@@ -182,16 +179,36 @@ fn search_in_directory(
             continue;
         }
 
-        // 只搜索指定扩展名的代码文件
+        // 只收集指定扩展名的代码文件
         if let Some(ext) = path.extension() {
             let ext_str = ext.to_string_lossy().to_lowercase();
-            if !code_extensions.contains(&ext_str) {
-                continue;
+            if code_extensions.contains(&ext_str) {
+                code_files.push(path.to_path_buf());
             }
-        } else {
-            continue; // 没有扩展名的文件跳过
         }
+    }
 
+    Ok(code_files)
+}
+
+/// 在预收集的代码文件中搜索文本模式
+///
+/// # 参数
+///
+/// * `searcher` - 可复用的搜索器实例
+/// * `code_files` - 预收集的代码文件路径
+/// * `pattern` - 要搜索的文本（会被转义为字面量）
+///
+/// # 返回值
+///
+/// * `Ok(true)` - 在至少一个文件中找到匹配
+/// * `Ok(false)` - 在所有文件中都未找到匹配
+fn search_in_code_files(
+    searcher: &mut grep_searcher::Searcher,
+    code_files: &[PathBuf],
+    pattern: &str,
+) -> Result<bool> {
+    for path in code_files {
         // 在文件中搜索
         match search_in_file(searcher, path, pattern) {
             Ok(true) => return Ok(true), // 找到匹配，立即返回
@@ -210,7 +227,7 @@ fn search_in_directory(
 /// * `searcher` - 可复用的搜索器实例
 /// * `file_path` - 要检查的文件路径
 /// * `base_dir` - 文件所在的基础目录
-/// * `code_extensions` - 代码文件扩展名集合
+/// * `code_files` - 预收集的代码文件路径
 ///
 /// # 返回值
 ///
@@ -219,7 +236,7 @@ fn check_file_status(
     searcher: &mut grep_searcher::Searcher,
     file_path: &Path,
     base_dir: &Path,
-    code_extensions: &HashSet<String>,
+    code_files: &[PathBuf],
 ) -> Result<FileStatus> {
     // 获取相对路径
     let relative_path = get_relative_path(file_path, base_dir)?;
@@ -231,12 +248,12 @@ fn check_file_status(
         .context("无效的文件名")?;
 
     // 第一步：搜索相对路径
-    if search_in_directory(searcher, base_dir, &relative_path, code_extensions)? {
+    if search_in_code_files(searcher, code_files, &relative_path)? {
         return Ok(FileStatus::Used);
     }
 
     // 第二步：搜索文件名
-    if search_in_directory(searcher, base_dir, file_name, code_extensions)? {
+    if search_in_code_files(searcher, code_files, file_name)? {
         return Ok(FileStatus::Uncertain);
     }
 
@@ -325,6 +342,12 @@ pub async fn run(args: FindUnusedFilesArgs) -> Result<()> {
 
     println!("找到 {} 个资源文件需要检查\n", files_to_check.len());
 
+    // 预收集所有代码文件（只收集一次）
+    println!("正在收集代码文件...");
+    let code_files = collect_code_files(&args.dir, &code_extensions).context("收集代码文件失败")?;
+
+    println!("找到 {} 个代码文件\n", code_files.len());
+
     // 创建可复用的搜索器实例（只创建一次）
     let mut searcher = SearcherBuilder::new().build();
 
@@ -338,7 +361,7 @@ pub async fn run(args: FindUnusedFilesArgs) -> Result<()> {
         let relative_path = get_relative_path(&file_path, &args.dir)
             .with_context(|| format!("获取相对路径失败: {}", file_path.display()))?;
 
-        let status = check_file_status(&mut searcher, &file_path, &args.dir, &code_extensions)
+        let status = check_file_status(&mut searcher, &file_path, &args.dir, &code_files)
             .with_context(|| format!("检查文件失败: {}", file_path.display()))?;
 
         match status {
