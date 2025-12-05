@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use file_utils::commands::{
-    claude_code, compress_delete, file_copy_rename, find_unused_files, tar_archive,
+    claude_code, compress_delete, deploy, file_copy_rename, find_unused_files, tar_archive,
 };
 
 /// 主命令结构体
@@ -39,6 +39,8 @@ enum Commands {
     FindUnusedFiles(find_unused_files::FindUnusedFilesArgs),
     /// 配置 @anthropic-ai/claude-code 的全局配置文件
     ClaudeCode(claude_code::ClaudeCodeArgs),
+    /// 读取 JSON 配置文件并执行部署步骤
+    Deploy(deploy::DeployArgs),
 }
 
 /// 主函数
@@ -54,5 +56,6 @@ async fn main() -> Result<()> {
         Commands::Tar(args) => tar_archive::run(args).await,
         Commands::FindUnusedFiles(args) => find_unused_files::run(args).await,
         Commands::ClaudeCode(args) => claude_code::run(args).await,
+        Commands::Deploy(args) => deploy::run(args).await,
     }
 }
