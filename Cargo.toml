@@ -31,3 +31,6 @@ russh = "0.45"
 russh-sftp = "2.0"
 russh-keys = "0.45"
 async-trait = "0.1"
+aws-config = { version = "1.8", features = ["behavior-version-latest", "rustls"] }
+aws-sdk-s3 = "1.111"
+mime_guess = "2.0"
