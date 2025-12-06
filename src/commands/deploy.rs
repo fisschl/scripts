@@ -9,6 +9,7 @@ use russh::client;
 use russh_keys::key;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
@@ -210,8 +211,6 @@ pub async fn run(args: DeployArgs) -> Result<()> {
     let config: DeployConfig =
         serde_json::from_str(&config_content).with_context(|| "JSON 解析失败")?;
 
-    // 验证配置
-
     // 转换步骤配置为步骤枚举
     let steps = &config.steps;
 
@@ -229,9 +228,31 @@ pub async fn run(args: DeployArgs) -> Result<()> {
         let step_num = index + 1;
         let total_steps = steps.len();
 
-        execute_step(step, step_num, total_steps, &mut conn_mgr)
-            .await
-            .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
+        match step {
+            Step::Upload {
+                name,
+                provider,
+                local,
+                remote,
+                mode,
+            } => {
+                println!("[步骤 {}/{}] {}", step_num, total_steps, name);
+                execute_upload_step(provider, local, remote, mode.as_deref(), &mut conn_mgr)
+                    .await
+                    .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
+            }
+            Step::Command {
+                name,
+                provider,
+                workdir,
+                commands,
+            } => {
+                println!("[步骤 {}/{}] {}", step_num, total_steps, name);
+                execute_command_step(provider, workdir, commands, &mut conn_mgr)
+                    .await
+                    .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
+            }
+        }
     }
 
     // 关闭所有连接
@@ -242,69 +263,16 @@ pub async fn run(args: DeployArgs) -> Result<()> {
     Ok(())
 }
 
-/// 执行单个步骤
-///
-/// 根据步骤类型调用相应的执行函数。
-async fn execute_step(
-    step: &Step,
-    step_num: usize,
-    total_steps: usize,
-    conn_mgr: &mut ConnectionManager,
-) -> Result<()> {
-    match step {
-        Step::Upload {
-            name,
-            provider,
-            local,
-            remote,
-            mode,
-        } => {
-            execute_upload_step(
-                name,
-                provider,
-                local,
-                remote,
-                mode.as_deref(),
-                step_num,
-                total_steps,
-                conn_mgr,
-            )
-            .await
-        }
-        Step::Command {
-            name,
-            provider,
-            workdir,
-            commands,
-        } => {
-            execute_command_step(
-                name,
-                provider,
-                workdir,
-                commands,
-                step_num,
-                total_steps,
-                conn_mgr,
-            )
-            .await
-        }
-    }
-}
-
 /// 执行上传步骤
 ///
 /// 通过 SFTP 上传文件到远程服务器。
 async fn execute_upload_step(
-    name: &str,
     provider: &str,
     local: &str,
     remote: &str,
     mode: Option<&str>,
-    step_num: usize,
-    total_steps: usize,
     conn_mgr: &mut ConnectionManager,
 ) -> Result<()> {
-    println!("[步骤 {}/{}] {}", step_num, total_steps, name);
     println!("  → Provider: {}", provider);
     println!("  → 本地: {}", local);
     println!("  → 远程: {}", remote);
@@ -380,15 +348,11 @@ async fn execute_upload_step(
 ///
 /// 在远程服务器的指定工作目录下执行命令列表。
 async fn execute_command_step(
-    name: &str,
     provider: &str,
     workdir: &str,
     commands: &[String],
-    step_num: usize,
-    total_steps: usize,
     conn_mgr: &mut ConnectionManager,
 ) -> Result<()> {
-    println!("[步骤 {}/{}] {}", step_num, total_steps, name);
     println!("  → Provider: {}", provider);
     println!("  → 工作目录: {}", workdir);
 
@@ -399,47 +363,47 @@ async fn execute_command_step(
     if commands.is_empty() {
         anyhow::bail!("命令列表为空");
     }
-    for command in commands {
-        println!("  → 执行命令: {}", command);
+    println!("  → 将在工作目录依次执行 {} 条命令", commands.len());
 
-        // 在指定工作目录下执行命令
-        let full_command = format!("cd {} && {}", workdir, command);
+    // 在命令列表开始时进入指定目录，一次性执行所有命令
+    let joined = commands.join(" && ");
+    let full_command = format!("cd {} && {}", workdir, joined);
 
-        let mut channel = session.channel_open_session().await?;
-        channel.exec(true, full_command.as_bytes()).await?;
+    let mut channel = session.channel_open_session().await?;
+    channel.exec(true, full_command.as_bytes()).await?;
 
-        let mut stdout = Vec::new();
-        let mut stderr = Vec::new();
-        let mut exit_code = None;
+    let mut stderr = Vec::new();
 
-        while let Some(msg) = channel.wait().await {
-            match msg {
-                russh::ChannelMsg::Data { ref data } => {
-                    stdout.extend_from_slice(data);
-                }
-                russh::ChannelMsg::ExtendedData { ref data, ext: 1 } => {
-                    stderr.extend_from_slice(data);
-                }
-                russh::ChannelMsg::ExitStatus { exit_status } => {
-                    exit_code = Some(exit_status);
-                }
-                _ => {}
+    while let Some(msg) = channel.wait().await {
+        match msg {
+            russh::ChannelMsg::Data { ref data } => {
+                let chunk = String::from_utf8_lossy(data);
+                print!("{}", chunk);
+                let _ = io::stdout().flush();
             }
+            russh::ChannelMsg::ExtendedData { ref data, ext: 1 } => {
+                stderr.extend_from_slice(data);
+                let chunk = String::from_utf8_lossy(data);
+                eprint!("{}", chunk);
+                let _ = io::stderr().flush();
+            }
+            russh::ChannelMsg::ExitStatus { exit_status } => {
+                if exit_status == 0 {
+                    continue;
+                }
+                let stderr_str = String::from_utf8_lossy(&stderr);
+                anyhow::bail!(
+                    "命令执行失败: {}\n  → 退出码: {}\n  → 错误输出: {}",
+                    joined,
+                    exit_status,
+                    stderr_str
+                );
+            }
+            _ => {}
         }
-
-        // 检查退出码
-        if exit_code != Some(0) {
-            let stderr_str = String::from_utf8_lossy(&stderr);
-            anyhow::bail!(
-                "命令执行失败: {}\n  → 退出码: {}\n  → 错误输出: {}",
-                command,
-                exit_code.unwrap_or(u32::MAX),
-                stderr_str
-            );
-        }
-
-        println!("  ✓ 命令执行成功");
     }
+
+    println!("  ✓ 命令执行成功");
 
     println!();
     Ok(())
