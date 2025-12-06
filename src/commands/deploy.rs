@@ -2,7 +2,43 @@
 //!
 //! 读取 JSON 配置文件并按顺序执行部署步骤。
 //! 支持通过 SSH 连接到远程服务器，执行文件上传和远程命令操作。
-
+//!
+//! 配置文件示例（JSON）：
+//! ```json
+//! {
+//!   "provider": {
+//!     "prod": {
+//!       "type": "ssh",
+//!       "host": "example.com",
+//!       "user": "deploy",
+//!       "port": 22,
+//!       "password": "your-password"
+//!     }
+//!   },
+//!   "steps": [
+//!     {
+//!       "type": "upload",
+//!       "name": "上传二进制",
+//!       "provider": "prod",
+//!       "local": "./dist/app",
+//!       "remote": "/opt/app/app",
+//!       "mode": "755"
+//!     },
+//!     {
+//!       "type": "command",
+//!       "name": "重启服务",
+//!       "provider": "prod",
+//!       "workdir": "/opt/app",
+//!       "commands": [
+//!         "systemctl stop app",
+//!         "systemctl start app",
+//!         "systemctl status app --no-pager"
+//!       ]
+//!     }
+//!   ]
+//! }
+//! ```
+//!
 use anyhow::{Context, Result};
 use clap::Args;
 use russh::client;
@@ -109,88 +145,38 @@ impl client::Handler for ClientHandler {
     }
 }
 
-/// SSH 连接管理器
+/// SSH 会话类型别名
+type SshSession = Arc<client::Handle<ClientHandler>>;
+
+/// 创建 SSH 会话
 ///
-/// 管理到远程服务器的 SSH 连接，支持延迟连接和缓存复用。
-pub struct ConnectionManager {
-    /// 缓存的 SSH 连接
-    connections: HashMap<String, Arc<client::Handle<ClientHandler>>>,
-    /// Provider 配置
-    providers: HashMap<String, ProviderConfig>,
-}
+/// 与配置结构无关的独立函数，接收原始连接参数。
+async fn create_ssh_session(
+    host: &str,
+    port: u16,
+    user: &str,
+    password: &str,
+) -> Result<SshSession> {
+    println!("  → 建立 SSH 连接: {}@{}:{}", user, host, port);
 
-impl ConnectionManager {
-    /// 创建新的连接管理器
-    pub fn new(providers: HashMap<String, ProviderConfig>) -> Self {
-        Self {
-            connections: HashMap::new(),
-            providers,
-        }
+    let client_config = client::Config::default();
+    let sh = ClientHandler;
+
+    let mut session = client::connect(Arc::new(client_config), (host, port), sh)
+        .await
+        .with_context(|| format!("无法连接到 {}:{}", host, port))?;
+
+    // 密码认证
+    let auth_res = session
+        .authenticate_password(user, password)
+        .await
+        .with_context(|| format!("SSH 认证失败: {}@{}", user, host))?;
+
+    if !auth_res {
+        anyhow::bail!("SSH 密码认证失败: {}@{}", user, host);
     }
 
-    /// 获取或建立到指定 provider 的连接
-    ///
-    /// 如果连接已存在则直接返回，否则建立新连接并缓存。
-    pub async fn get_connection(
-        &mut self,
-        provider_name: &str,
-    ) -> Result<Arc<client::Handle<ClientHandler>>> {
-        // 检查缓存
-        if let Some(conn) = self.connections.get(provider_name) {
-            return Ok(conn.clone());
-        }
-
-        // 获取 provider 配置
-        let config = self
-            .providers
-            .get(provider_name)
-            .with_context(|| format!("Provider '{}' 未定义", provider_name))?;
-
-        // 根据 provider 类型建立连接
-        match config {
-            ProviderConfig::Ssh {
-                host,
-                user,
-                port,
-                password,
-            } => {
-                println!("  → 建立 SSH 连接: {}@{}:{}", user, host, port);
-
-                let client_config = client::Config::default();
-                let sh = ClientHandler;
-
-                let mut session =
-                    client::connect(Arc::new(client_config), (host.as_str(), *port), sh)
-                        .await
-                        .with_context(|| format!("无法连接到 {}:{}", host, port))?;
-
-                // 密码认证
-                let auth_res = session
-                    .authenticate_password(user.clone(), password.clone())
-                    .await
-                    .with_context(|| format!("SSH 认证失败: {}@{}", user, host))?;
-
-                if !auth_res {
-                    anyhow::bail!("SSH 密码认证失败: {}@{}", user, host);
-                }
-
-                let handle = Arc::new(session);
-                self.connections
-                    .insert(provider_name.to_string(), handle.clone());
-
-                Ok(handle)
-            }
-        }
-    }
-
-    /// 关闭所有连接
-    pub async fn close_all(&mut self) {
-        for (_name, handle) in self.connections.drain() {
-            let _ = handle
-                .disconnect(russh::Disconnect::ByApplication, "", "")
-                .await;
-        }
-    }
+    Ok(Arc::new(session))
 }
 
 /// 命令执行函数
@@ -220,8 +206,27 @@ pub async fn run(args: DeployArgs) -> Result<()> {
     println!("Provider 数量: {}", config.providers.len());
     println!("步骤数量: {}\n", steps.len());
 
-    // 初始化连接管理器
-    let mut conn_mgr = ConnectionManager::new(config.providers.clone());
+    // 创建 SSH 连接哈希表
+    let mut connections: HashMap<String, SshSession> = HashMap::new();
+
+    // 遍历 provider，依次创建连接
+    println!("建立 SSH 连接...");
+    for (name, provider_config) in &config.providers {
+        match provider_config {
+            ProviderConfig::Ssh {
+                host,
+                user,
+                port,
+                password,
+            } => {
+                let session = create_ssh_session(host, *port, user, password)
+                    .await
+                    .with_context(|| format!("创建 provider '{}' 的连接失败", name))?;
+                connections.insert(name.clone(), session);
+            }
+        }
+    }
+    println!();
 
     // 执行步骤
     for (index, step) in steps.iter().enumerate() {
@@ -237,7 +242,10 @@ pub async fn run(args: DeployArgs) -> Result<()> {
                 mode,
             } => {
                 println!("[步骤 {}/{}] {}", step_num, total_steps, name);
-                execute_upload_step(provider, local, remote, mode.as_deref(), &mut conn_mgr)
+                let session = connections
+                    .get(provider)
+                    .with_context(|| format!("Provider '{}' 未定义", provider))?;
+                execute_upload_step(session, provider, local, remote, mode.as_deref())
                     .await
                     .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
             }
@@ -248,7 +256,10 @@ pub async fn run(args: DeployArgs) -> Result<()> {
                 commands,
             } => {
                 println!("[步骤 {}/{}] {}", step_num, total_steps, name);
-                execute_command_step(provider, workdir, commands, &mut conn_mgr)
+                let session = connections
+                    .get(provider)
+                    .with_context(|| format!("Provider '{}' 未定义", provider))?;
+                execute_command_step(session, provider, workdir, commands)
                     .await
                     .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
             }
@@ -256,7 +267,11 @@ pub async fn run(args: DeployArgs) -> Result<()> {
     }
 
     // 关闭所有连接
-    conn_mgr.close_all().await;
+    for (_name, handle) in connections.drain() {
+        handle
+            .disconnect(russh::Disconnect::ByApplication, "", "")
+            .await?;
+    }
 
     // 显示完成信息
     println!("\n操作成功完成！");
@@ -267,18 +282,15 @@ pub async fn run(args: DeployArgs) -> Result<()> {
 ///
 /// 通过 SFTP 上传文件到远程服务器。
 async fn execute_upload_step(
+    session: &SshSession,
     provider: &str,
     local: &str,
     remote: &str,
     mode: Option<&str>,
-    conn_mgr: &mut ConnectionManager,
 ) -> Result<()> {
     println!("  → Provider: {}", provider);
     println!("  → 本地: {}", local);
     println!("  → 远程: {}", remote);
-
-    // 获取连接
-    let session = conn_mgr.get_connection(provider).await?;
 
     // 检查本地文件
     let local_path = Path::new(local);
@@ -348,29 +360,36 @@ async fn execute_upload_step(
 ///
 /// 在远程服务器的指定工作目录下执行命令列表。
 async fn execute_command_step(
+    session: &SshSession,
     provider: &str,
     workdir: &str,
     commands: &[String],
-    conn_mgr: &mut ConnectionManager,
 ) -> Result<()> {
     println!("  → Provider: {}", provider);
     println!("  → 工作目录: {}", workdir);
-
-    // 获取连接
-    let session = conn_mgr.get_connection(provider).await?;
 
     // 执行每个命令
     if commands.is_empty() {
         anyhow::bail!("命令列表为空");
     }
-    println!("  → 将在工作目录依次执行 {} 条命令", commands.len());
+    println!("  → 启动交互式 shell，逐条执行命令");
 
-    // 在命令列表开始时进入指定目录，一次性执行所有命令
-    let joined = commands.join(" && ");
-    let full_command = format!("cd {} && {}", workdir, joined);
-
+    // 启动交互式 shell（从标准输入读取命令）
     let mut channel = session.channel_open_session().await?;
-    channel.exec(true, full_command.as_bytes()).await?;
+    channel.exec(true, b"bash -s").await?;
+
+    // 进入工作目录并开启错误立即退出
+    channel.data(format!("cd {}\n", workdir).as_bytes()).await?;
+    channel.data("set -e\n".as_bytes()).await?;
+
+    // 逐条发送命令
+    for cmd in commands {
+        println!("  → 执行命令: {}", cmd);
+        channel.data(format!("{}\n", cmd).as_bytes()).await?;
+    }
+
+    // 退出 shell
+    channel.data("exit\n".as_bytes()).await?;
 
     let mut stderr = Vec::new();
 
@@ -393,8 +412,7 @@ async fn execute_command_step(
                 }
                 let stderr_str = String::from_utf8_lossy(&stderr);
                 anyhow::bail!(
-                    "命令执行失败: {}\n  → 退出码: {}\n  → 错误输出: {}",
-                    joined,
+                    "命令执行失败: 交互式 shell\n  → 退出码: {}\n  → 错误输出: {}",
                     exit_status,
                     stderr_str
                 );
@@ -403,8 +421,6 @@ async fn execute_command_step(
         }
     }
 
-    println!("  ✓ 命令执行成功");
-
-    println!();
+    println!("  ✓ 命令执行成功\n");
     Ok(())
 }
