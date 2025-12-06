@@ -38,18 +38,20 @@
 //!   ]
 //! }
 //! ```
-//!
+
+use crate::utils::filesystem::list_local_files;
+use crate::utils::ssh::{
+    SshSession, create_ssh_session, ensure_remote_dir_exists, exec_remote_cmd, list_remote_files,
+    upload_single_file,
+};
 use anyhow::{Context, Result};
 use clap::Args;
-use russh::client;
-use russh_keys::key;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use tokio::fs;
-use tokio::io::AsyncReadExt;
 
 /// 命令行参数结构体
 ///
@@ -124,59 +126,6 @@ pub enum Step {
         workdir: String,
         commands: Vec<String>,
     },
-}
-
-/// SSH 客户端处理器
-///
-/// 实现 russh 的客户端处理器接口。
-pub struct ClientHandler;
-
-#[async_trait::async_trait]
-impl client::Handler for ClientHandler {
-    type Error = russh::Error;
-
-    async fn check_server_key(
-        &mut self,
-        _server_public_key: &key::PublicKey,
-    ) -> Result<bool, Self::Error> {
-        // 在生产环境中应验证服务器密钥
-        // 这里为了简化直接接受所有密钥
-        Ok(true)
-    }
-}
-
-/// SSH 会话类型别名
-type SshSession = Arc<client::Handle<ClientHandler>>;
-
-/// 创建 SSH 会话
-///
-/// 与配置结构无关的独立函数，接收原始连接参数。
-async fn create_ssh_session(
-    host: &str,
-    port: u16,
-    user: &str,
-    password: &str,
-) -> Result<SshSession> {
-    println!("  → 建立 SSH 连接: {}@{}:{}", user, host, port);
-
-    let client_config = client::Config::default();
-    let sh = ClientHandler;
-
-    let mut session = client::connect(Arc::new(client_config), (host, port), sh)
-        .await
-        .with_context(|| format!("无法连接到 {}:{}", host, port))?;
-
-    // 密码认证
-    let auth_res = session
-        .authenticate_password(user, password)
-        .await
-        .with_context(|| format!("SSH 认证失败: {}@{}", user, host))?;
-
-    if !auth_res {
-        anyhow::bail!("SSH 密码认证失败: {}@{}", user, host);
-    }
-
-    Ok(Arc::new(session))
 }
 
 /// 命令执行函数
@@ -280,7 +229,8 @@ pub async fn run(args: DeployArgs) -> Result<()> {
 
 /// 执行上传步骤
 ///
-/// 通过 SFTP 上传文件到远程服务器。
+/// 通过 SFTP 上传文件或目录到远程服务器。
+/// 支持文件和目录两种模式，目录模式会同步整个目录内容。
 async fn execute_upload_step(
     session: &SshSession,
     provider: &str,
@@ -292,63 +242,81 @@ async fn execute_upload_step(
     println!("  → 本地: {}", local);
     println!("  → 远程: {}", remote);
 
-    // 检查本地文件
     let local_path = Path::new(local);
     if !local_path.exists() {
-        anyhow::bail!("本地文件不存在: {}", local);
+        anyhow::bail!("本地路径不存在: {}", local);
     }
-
-    // 读取本地文件内容
-    let mut file_content = Vec::new();
-    let mut file = fs::File::open(local_path)
-        .await
-        .with_context(|| format!("无法打开本地文件: {}", local))?;
-    file.read_to_end(&mut file_content)
-        .await
-        .with_context(|| format!("无法读取本地文件: {}", local))?;
 
     // 创建 SFTP 通道
     let channel = session.channel_open_session().await?;
     channel.request_subsystem(true, "sftp").await?;
-
     let sftp = russh_sftp::client::SftpSession::new(channel.into_stream()).await?;
 
-    // 上传文件
-    let mut remote_file = sftp
-        .create(remote)
-        .await
-        .with_context(|| format!("无法创建远程文件: {}", remote))?;
+    if local_path.is_file() {
+        // 文件上传模式
+        upload_single_file(session, &sftp, local_path, remote).await?;
+        println!("  ✓ 上传成功");
+    } else if local_path.is_dir() {
+        // 目录同步模式
+        println!("  → 目录同步模式");
 
-    tokio::io::copy(&mut file_content.as_slice(), &mut remote_file)
-        .await
-        .with_context(|| format!("上传文件失败: {}", remote))?;
+        // 确保远程目录存在
+        ensure_remote_dir_exists(session, remote).await?;
 
-    remote_file.sync_all().await?;
-    drop(remote_file);
-    drop(sftp);
+        // 列举本地文件（相对路径）
+        let local_files = list_local_files(local_path)?;
+        println!("  → 本地文件数量: {}", local_files.len());
 
-    println!("  ✓ 上传成功");
+        // 列举远程文件（相对路径）
+        let remote_files = list_remote_files(&sftp, remote).await?;
+        println!("  → 远程文件数量: {}", remote_files.len());
 
-    // 设置文件权限（如果指定）
-    if let Some(file_mode) = mode {
-        let chmod_cmd = format!("chmod {} {}", file_mode, remote);
-        let mut channel = session.channel_open_session().await?;
-        channel.exec(true, chmod_cmd.as_bytes()).await?;
+        // 上传所有本地文件
+        for rel_path in &local_files {
+            let local_file = local_path.join(rel_path);
+            let remote_file = format!("{}/{}", remote.trim_end_matches('/'), rel_path);
 
-        let mut exit_code = None;
-        while let Some(msg) = channel.wait().await {
-            match msg {
-                russh::ChannelMsg::ExitStatus { exit_status } => {
-                    exit_code = Some(exit_status);
+            // 确保远程父目录存在
+            if let Some(parent) = Path::new(rel_path).parent() {
+                if !parent.as_os_str().is_empty() {
+                    let remote_parent =
+                        format!("{}/{}", remote.trim_end_matches('/'), parent.display());
+                    ensure_remote_dir_exists(session, &remote_parent).await?;
                 }
-                _ => {}
+            }
+
+            upload_single_file(session, &sftp, &local_file, &remote_file).await?;
+            println!("  ✓ 上传: {}", rel_path);
+        }
+
+        // 删除远程多余文件
+        let local_set: HashSet<_> = local_files.iter().collect();
+        for rel_path in &remote_files {
+            if !local_set.contains(rel_path) {
+                let remote_file = format!("{}/{}", remote.trim_end_matches('/'), rel_path);
+                sftp.remove_file(&remote_file).await?;
+                println!("  ✓ 删除远程: {}", rel_path);
             }
         }
 
-        if exit_code != Some(0) {
-            anyhow::bail!("权限设置失败: chmod {} {}", file_mode, remote);
-        }
+        println!("  ✓ 目录同步完成");
+    } else {
+        anyhow::bail!("不支持的本地路径类型: {}", local);
+    }
 
+    drop(sftp);
+
+    // 设置文件权限（如果指定）
+    if let Some(file_mode) = mode {
+        let chmod_cmd = if local_path.is_dir() {
+            format!("chmod -R {} {}", file_mode, remote)
+        } else {
+            format!("chmod {} {}", file_mode, remote)
+        };
+        let exit_code = exec_remote_cmd(session, "/", &chmod_cmd).await?;
+        if exit_code != 0 {
+            anyhow::bail!("权限设置失败: {}", chmod_cmd);
+        }
         println!("  ✓ 权限设置成功: {}", file_mode);
     }
 
