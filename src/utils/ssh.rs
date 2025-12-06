@@ -5,6 +5,7 @@
 use anyhow::{Context, Result};
 use russh::client;
 use russh_keys::key;
+use std::collections::HashSet;
 use std::io::{self, Write};
 use std::path::Path;
 use std::sync::Arc;
@@ -258,6 +259,36 @@ impl SSHServer {
         anyhow::bail!("命令执行异常: 未收到退出码")
     }
 
+    /// 递归创建远程目录
+    ///
+    /// 创建远程目录及其所有必需的父目录。如果目录已存在则不执行任何操作。
+    /// 等同于 `mkdir -p` 命令的行为。
+    ///
+    /// # 参数
+    ///
+    /// * `remote_dir` - 要创建的远程目录路径
+    ///
+    /// # 返回值
+    ///
+    /// * `Ok(())` - 目录创建成功或已存在
+    /// * `Err(anyhow::Error)` - 目录创建失败
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// server.mkdir_p("/home/user/path/to/dir").await?;
+    /// ```
+    pub async fn mkdir_p(&self, remote_dir: &str) -> Result<()> {
+        if remote_dir.is_empty() {
+            return Ok(());
+        }
+
+        // 使用 mkdir -p 命令递归创建目录
+        let mkdir_cmd = format!("mkdir -p {}", remote_dir);
+        self.exec_command("/", &mkdir_cmd).await?;
+        Ok(())
+    }
+
     /// 上传本地文件到远程服务器
     ///
     /// 使用流式传输将本地文件上传到远程服务器，自动创建远程父目录。
@@ -291,10 +322,7 @@ impl SSHServer {
         if let Some(parent_idx) = remote_path.rfind('/') {
             let parent_dir = &remote_path[..parent_idx];
             if !parent_dir.is_empty() {
-                let mkdir_cmd = format!("mkdir -p {}", parent_dir);
-                let output = self.exec_command("/", &mkdir_cmd).await?;
-                // exec_command 已经会在失败时返回错误，所以这里不需要额外检查
-                let _ = output; // 忽略输出
+                self.mkdir_p(parent_dir).await?;
             }
         }
 
@@ -331,6 +359,73 @@ impl SSHServer {
                 file_size,
                 bytes_copied
             );
+        }
+
+        Ok(())
+    }
+
+    /// 上传目录到远程服务器
+    ///
+    /// 将本地目录的所有内容同步到远程目录。
+    /// 同步逻辑：
+    /// 1. 确保远程目录存在
+    /// 2. 上传所有本地文件
+    /// 3. 删除远程多余的文件（确保远程目录与本地完全一致）
+    ///
+    /// # 参数
+    ///
+    /// * `local_dir` - 本地目录路径
+    /// * `remote_dir` - 远程目录路径
+    ///
+    /// # 返回值
+    ///
+    /// * `Ok(())` - 目录同步成功
+    /// * `Err(anyhow::Error)` - 本地目录不存在或同步失败
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// use std::path::Path;
+    /// server.upload_dir(Path::new("./local_dir"), "/remote/path").await?;
+    /// ```
+    pub async fn upload_dir(&self, local_dir: &Path, remote_dir: &str) -> Result<()> {
+        // 检查本地目录是否存在
+        if !local_dir.exists() {
+            anyhow::bail!("本地目录不存在: {}", local_dir.display());
+        }
+        if !local_dir.is_dir() {
+            anyhow::bail!("路径不是目录: {}", local_dir.display());
+        }
+
+        // 确保远程目录存在
+        self.mkdir_p(remote_dir).await?;
+
+        // 列举本地文件（相对路径）
+        let local_files = crate::utils::filesystem::list_local_files(local_dir)?;
+        println!("  → 本地文件数量: {}", local_files.len());
+
+        // 列举远程文件（相对路径）
+        let remote_files = self.list_files(remote_dir).await?;
+        println!("  → 远程文件数量: {}", remote_files.len());
+
+        // 上传所有本地文件
+        for rel_path in &local_files {
+            let local_file = local_dir.join(rel_path);
+            let remote_file = format!("{}/{}", remote_dir.trim_end_matches('/'), rel_path);
+            self.upload_file(&local_file, &remote_file).await?;
+            println!("  ✓ 上传: {}", rel_path);
+        }
+
+        // 删除远程多余文件
+        let local_set: HashSet<_> = local_files.iter().collect();
+        for remote_rel_path in &remote_files {
+            if !local_set.contains(remote_rel_path) {
+                let remote_file =
+                    format!("{}/{}", remote_dir.trim_end_matches('/'), remote_rel_path);
+                let rm_cmd = format!("rm -f {}", remote_file);
+                self.exec_command("/", &rm_cmd).await?;
+                println!("  ✓ 删除远程: {}", remote_rel_path);
+            }
         }
 
         Ok(())
@@ -396,5 +491,29 @@ impl SSHServer {
         }
 
         Ok(files)
+    }
+
+    /// 关闭 SSH 连接
+    ///
+    /// 主动断开 SSH 会话,释放相关资源。
+    /// 虽然 SSHServer 在 drop 时会自动清理资源,但显式调用 close 可以更早释放连接。
+    ///
+    /// # 返回值
+    ///
+    /// * `Ok(())` - 成功关闭连接
+    /// * `Err(anyhow::Error)` - 关闭连接时发生错误
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// let server = SSHServer::new("example.com", 22, "user", "pass").await?;
+    /// // ... 执行操作 ...
+    /// server.close().await?;
+    /// ```
+    pub async fn close(self) -> Result<()> {
+        self.session
+            .disconnect(russh::Disconnect::ByApplication, "", "")
+            .await?;
+        Ok(())
     }
 }
