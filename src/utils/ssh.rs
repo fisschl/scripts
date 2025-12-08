@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 use russh::client;
-use russh_keys::key;
+use russh::keys::PublicKey;
 use std::collections::HashSet;
 use std::io::{self, Write};
 use std::path::Path;
@@ -17,16 +17,15 @@ use tokio::fs;
 /// 在生产环境中应该实现严格的密钥验证，此处为演示目的直接接受所有密钥。
 pub struct ClientHandler;
 
-#[async_trait::async_trait]
 impl client::Handler for ClientHandler {
     type Error = russh::Error;
 
-    async fn check_server_key(
+    fn check_server_key(
         &mut self,
-        _server_public_key: &key::PublicKey,
-    ) -> Result<bool, Self::Error> {
+        _server_public_key: &PublicKey,
+    ) -> impl std::future::Future<Output = Result<bool, Self::Error>> + Send {
         // 这里为了简化直接接受所有密钥
-        Ok(true)
+        async { Ok(true) }
     }
 }
 
@@ -108,7 +107,7 @@ impl SSHServer {
             .await
             .with_context(|| format!("SSH 认证失败: {}@{}", user, host))?;
 
-        if !auth_res {
+        if !matches!(auth_res, russh::client::AuthResult::Success) {
             anyhow::bail!("SSH 密码认证失败: {}@{}", user, host);
         }
 
