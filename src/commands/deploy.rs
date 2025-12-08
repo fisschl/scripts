@@ -6,7 +6,7 @@
 //! 配置文件示例（JSON）：
 //! ```json
 //! {
-//!   "provider": {
+//!   "providers": {
 //!     "prod": {
 //!       "type": "ssh",
 //!       "host": "example.com",
@@ -62,13 +62,13 @@ use tokio::fs;
 pub struct DeployArgs {
     /// JSON 格式的部署配置文件路径
     ///
-    /// 配置文件包含 provider（服务器连接信息）和 steps（部署步骤）。
+    /// 配置文件包含 providers（服务器连接信息）和 steps（部署步骤）。
     #[arg(
         short = 'c',
         long,
         value_name = "CONFIG",
         help = "JSON 格式的部署配置文件路径",
-        long_help = "指定包含 provider 和 steps 的 JSON 配置文件"
+        long_help = "指定包含 providers 和 steps 的 JSON 配置文件"
     )]
     pub config: PathBuf,
 }
@@ -79,7 +79,6 @@ pub struct DeployArgs {
 #[derive(Debug, Deserialize)]
 pub struct DeployConfig {
     /// 服务器配置映射表
-    #[serde(rename = "provider")]
     pub providers: HashMap<String, ProviderConfig>,
     /// 步骤列表
     pub steps: Vec<Step>,
