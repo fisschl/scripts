@@ -16,7 +16,7 @@ use tokio::fs;
 /// # 示例
 ///
 /// ```rust
-/// use file_utils::utils::s3::S3Manager;
+/// use scripts::utils::s3::S3Manager;
 ///
 /// #[tokio::main]
 /// async fn main() -> anyhow::Result<()> {
@@ -54,7 +54,7 @@ impl S3Manager {
     /// # 示例
     ///
     /// ```rust
-    /// use file_utils::utils::s3::S3Manager;
+    /// use scripts::utils::s3::S3Manager;
     ///
     /// #[tokio::main]
     /// async fn main() -> anyhow::Result<()> {

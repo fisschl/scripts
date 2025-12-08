@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use file_utils::commands::{
+use scripts::commands::{
     claude_code, compress_delete, deploy, file_copy_rename, find_unused_files, tar_archive,
 };
 

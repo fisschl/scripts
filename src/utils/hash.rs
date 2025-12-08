@@ -29,7 +29,7 @@ use tokio::io::AsyncReadExt;
 /// # 示例
 ///
 /// ```rust
-/// use file_utils::utils::hash::calculate_file_hash;
+/// use scripts::utils::hash::calculate_file_hash;
 /// use std::path::Path;
 ///
 /// #[tokio::main]

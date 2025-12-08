@@ -41,7 +41,7 @@ pub type SshSession = Arc<client::Handle<ClientHandler>>;
 /// # 示例
 ///
 /// ```rust
-/// use file_utils::utils::ssh::{create_ssh_session, SSHServer};
+/// use scripts::utils::ssh::{create_ssh_session, SSHServer};
 /// use std::path::Path;
 ///
 /// #[tokio::main]
@@ -81,7 +81,7 @@ impl SSHServer {
     /// # 示例
     ///
     /// ```rust
-    /// use file_utils::utils::ssh::SSHServer;
+    /// use scripts::utils::ssh::SSHServer;
     ///
     /// #[tokio::main]
     /// async fn main() -> anyhow::Result<()> {

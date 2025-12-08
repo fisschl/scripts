@@ -30,7 +30,7 @@ use tokio::fs;
 /// # 示例
 ///
 /// ```rust
-/// use file_utils::utils::filesystem::remove_path;
+/// use scripts::utils::filesystem::remove_path;
 /// use std::path::Path;
 ///
 /// #[tokio::main]
@@ -75,7 +75,7 @@ pub async fn remove_path<P: AsRef<Path>>(path: P) -> Result<()> {
 /// # 示例
 ///
 /// ```rust
-/// use file_utils::utils::filesystem::ensure_directory_exists;
+/// use scripts::utils::filesystem::ensure_directory_exists;
 /// use std::path::Path;
 ///
 /// #[tokio::main]
@@ -115,7 +115,7 @@ pub async fn ensure_directory_exists<P: AsRef<Path>>(dir_path: P) -> Result<()> 
 /// # 示例
 ///
 /// ```rust
-/// use file_utils::utils::filesystem::get_file_extension;
+/// use scripts::utils::filesystem::get_file_extension;
 /// use std::path::Path;
 ///
 /// let ext = get_file_extension(Path::new("document.PDF"));
@@ -152,7 +152,7 @@ pub fn get_file_extension<P: AsRef<Path>>(path: P) -> String {
 /// # 示例
 ///
 /// ```rust
-/// use file_utils::utils::filesystem::list_local_files;
+/// use scripts::utils::filesystem::list_local_files;
 /// use std::path::Path;
 ///
 /// fn main() -> anyhow::Result<()> {
