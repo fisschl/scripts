@@ -88,7 +88,7 @@ pub struct DeployConfig {
 ///
 /// 使用带标签的枚举以支持多种远程类型。
 #[derive(Debug, Deserialize, Clone)]
-#[serde(tag = "type", rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "kebab-case")]
 pub enum ProviderConfig {
     Ssh {
         host: String,
@@ -101,9 +101,10 @@ pub enum ProviderConfig {
 
 /// 步骤定义（枚举类型）
 ///
-/// 定义了两种部署步骤类型。
+/// 1. Upload: 文件上传到远程服务器
+/// 2. Command: 在远程服务器执行命令
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "kebab-case")]
 pub enum Step {
     /// 文件上传步骤
     Upload {
@@ -147,7 +148,7 @@ pub async fn run(args: DeployArgs) -> Result<()> {
     println!("{} Deploy 部署工具 {}", "=".repeat(15), "=".repeat(15));
     println!("配置文件: {}", config_path.display());
     println!("Provider 数量: {}", config.providers.len());
-    println!("步骤数量: {}\n", steps.len());
+    println!("步骤数量: {}", steps.len());
 
     // 创建 SSH 连接哈希表
     let mut connections: HashMap<String, SSHServer> = HashMap::new();
@@ -169,7 +170,6 @@ pub async fn run(args: DeployArgs) -> Result<()> {
             }
         }
     }
-    println!();
 
     // 执行步骤
     for (index, step) in steps.iter().enumerate() {
@@ -218,7 +218,7 @@ pub async fn run(args: DeployArgs) -> Result<()> {
     }
 
     // 显示完成信息
-    println!("\n操作成功完成！");
+    println!("操作成功完成！");
     Ok(())
 }
 
@@ -266,7 +266,6 @@ async fn execute_upload_step(
         println!("  ✓ 权限设置成功: {}", file_mode);
     }
 
-    println!();
     Ok(())
 }
 
@@ -290,6 +289,6 @@ async fn execute_command_step(
     let cmd_refs: Vec<&str> = commands.iter().map(|s| s.as_str()).collect();
     server.exec_commands(workdir, &cmd_refs).await?;
 
-    println!("  ✓ 命令执行成功\n");
+    println!("  ✓ 命令执行成功");
     Ok(())
 }
