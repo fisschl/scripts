@@ -24,7 +24,7 @@ use tokio::fs;
 ///         "my-access-key-id",
 ///         "my-secret-access-key",
 ///         "us-east-1",
-///         Some("https://s3.example.com")
+///         "https://s3.example.com"
 ///     ).await?;
 ///     manager.upload_file("my-bucket", "local.txt", "remote/path/file.txt").await?;
 ///     Ok(())
@@ -44,7 +44,7 @@ impl S3Manager {
     /// * `access_key_id` - AWS 访问密钥 ID
     /// * `secret_access_key` - AWS 密钥
     /// * `region` - AWS 区域（如 us-east-1）
-    /// * `endpoint_url` - 可选的自定义端点 URL（用于兼容 S3 的服务）
+    /// * `endpoint_url` - 自定义端点 URL（用于兼容 S3 的服务）
     ///
     /// # 返回值
     ///
@@ -62,7 +62,7 @@ impl S3Manager {
     ///         "AKIAIOSFODNN7EXAMPLE",
     ///         "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
     ///         "us-east-1",
-    ///         None
+    ///         "https://s3.amazonaws.com"
     ///     ).await?;
     ///     Ok(())
     /// }
@@ -71,7 +71,7 @@ impl S3Manager {
         access_key_id: &str,
         secret_access_key: &str,
         region: &str,
-        endpoint_url: Option<&str>,
+        endpoint_url: &str,
     ) -> Result<Self> {
         println!("  → 初始化 S3 客户端: region={}", region);
 
@@ -81,13 +81,10 @@ impl S3Manager {
         let credentials =
             Credentials::new(access_key_id, secret_access_key, None, None, "s3-manager");
 
-        let mut config_builder = aws_config::defaults(BehaviorVersion::latest())
+        let config_builder = aws_config::defaults(BehaviorVersion::latest())
             .credentials_provider(credentials)
-            .region(Region::new(region.to_string()));
-
-        if let Some(endpoint) = endpoint_url {
-            config_builder = config_builder.endpoint_url(endpoint);
-        }
+            .region(Region::new(region.to_string()))
+            .endpoint_url(endpoint_url);
 
         let config = config_builder.load().await;
         let client = Client::new(&config);

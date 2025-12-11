@@ -13,6 +13,13 @@
 //!       "user": "deploy",
 //!       "port": 22,
 //!       "password": "your-password"
+//!     },
+//!     "s3-storage": {
+//!       "type": "s3",
+//!       "access-key-id": "AKIAIOSFODNN7EXAMPLE",
+//!       "secret-access-key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+//!       "region": "us-east-1",
+//!       "endpoint-url": "https://s3.amazonaws.com"
 //!     }
 //!   },
 //!   "steps": [
@@ -39,6 +46,7 @@
 //! }
 //! ```
 
+use crate::utils::s3::S3Manager;
 use crate::utils::ssh::SSHServer;
 use anyhow::{Context, Result};
 use clap::Args;
@@ -73,52 +81,118 @@ pub struct DeployArgs {
     pub config: PathBuf,
 }
 
-/// 顶层配置结构
+/// 部署配置顶层结构体
 ///
-/// 包含服务器配置映射表和步骤列表。
+/// 从 JSON 文件反序列化，包含全部部署所需信息。
+/// 包括服务器连接配置映射表和按顺序执行的部署步骤列表。
 #[derive(Debug, Deserialize)]
 pub struct DeployConfig {
-    /// 服务器配置映射表
+    /// 服务器提供者配置映射表
+    ///
+    /// 键为提供者名称（如 "prod", "s3-storage"），值为对应的连接配置。
+    /// 支持 SSH 和 S3 两种类型的提供者。
     pub providers: HashMap<String, ProviderConfig>,
-    /// 步骤列表
+    /// 部署步骤列表
+    ///
+    /// 按顺序执行的部署步骤，可以是文件上传或远程命令执行。
     pub steps: Vec<Step>,
 }
 
-/// 服务器连接配置
+/// 服务器提供者连接配置枚举
 ///
-/// 使用带标签的枚举以支持多种远程类型。
+/// 使用标签化枚举（internally tagged enum）区分不同类型的远程连接配置。
+/// 目前支持 SSH 和 S3 两种连接类型。
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum ProviderConfig {
+    /// SSH 连接配置
+    ///
+    /// 用于通过 SSH 协议连接远程服务器。
     Ssh {
+        /// 远程服务器主机名或 IP 地址
         host: String,
+        /// SSH 登录用户名
         user: String,
+        /// SSH 端口号（通常为 22）
         port: u16,
+        /// SSH 登录密码
         password: String,
     },
-    // 未来可扩展更多类型，如 Sftp、Http 等
+    /// S3 对象存储连接配置
+    ///
+    /// 用于连接 AWS S3 或兼容 S3 接口的对象存储服务。
+    S3 {
+        /// AWS 访问密钥 ID（Access Key ID）
+        ///
+        /// 用于身份验证的访问密钥标识符。
+        access_key_id: String,
+        /// AWS 秘密访问密钥（Secret Access Key）
+        ///
+        /// 与 Access Key ID 配对的秘密密钥，用于签名验证。
+        secret_access_key: String,
+        /// AWS 区域（Region）
+        ///
+        /// 指定 S3 服务所在的区域，如 "us-east-1"。
+        region: String,
+        /// S3 服务端点 URL
+        ///
+        /// AWS S3 或兼容 S3 服务的 API 端点地址。
+        endpoint_url: String,
+    },
 }
 
-/// 步骤定义（枚举类型）
+/// 部署步骤定义枚举
 ///
-/// 1. Upload: 文件上传到远程服务器
-/// 2. Command: 在远程服务器执行命令
+/// 表示部署过程中可以执行的不同类型的操作。
+/// 目前支持文件上传和远程命令执行两种步骤类型。
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum Step {
     /// 文件上传步骤
+    ///
+    /// 将本地文件或目录上传到远程服务器（SSH）或 S3 存储桶。
     Upload {
+        /// 步骤名称
+        ///
+        /// 用于在部署日志中标识此步骤，有助于识别执行进度。
         name: String,
+        /// 目标提供者名称
+        ///
+        /// 引用 DeployConfig.providers 中定义的提供者配置名称。
         provider: String,
+        /// 本地文件或目录路径
+        ///
+        /// 相对于当前工作目录的本地文件或目录路径。
         local: String,
+        /// 远程目标路径
+        ///
+        /// 对于 SSH：远程服务器上的目标路径。
+        /// 对于 S3：存储桶中的目标对象键（key）。
         remote: String,
+        /// 文件权限模式（可选）
+        ///
+        /// 仅适用于 SSH 上传，设置远程文件的权限（如 "755"）。
         mode: Option<String>,
     },
     /// 远程命令执行步骤
+    ///
+    /// 在远程服务器上执行一系列命令（仅适用于 SSH 提供者）。
     Command {
+        /// 步骤名称
+        ///
+        /// 用于在部署日志中标识此步骤，有助于识别执行进度。
         name: String,
+        /// 目标提供者名称
+        ///
+        /// 引用 DeployConfig.providers 中定义的 SSH 提供者配置名称。
         provider: String,
+        /// 工作目录
+        ///
+        /// 执行命令时所在的远程服务器目录路径。
         workdir: String,
+        /// 命令列表
+        ///
+        /// 按顺序执行的远程命令字符串列表。
         commands: Vec<String>,
     },
 }
@@ -150,11 +224,12 @@ pub async fn run(args: DeployArgs) -> Result<()> {
     println!("Provider 数量: {}", config.providers.len());
     println!("步骤数量: {}", steps.len());
 
-    // 创建 SSH 连接哈希表
-    let mut connections: HashMap<String, SSHServer> = HashMap::new();
+    // 创建 SSH 和 S3 连接哈希表
+    let mut ssh_connections: HashMap<String, SSHServer> = HashMap::new();
+    let mut s3_connections: HashMap<String, S3Manager> = HashMap::new();
 
     // 遍历 provider，依次创建连接
-    println!("建立 SSH 连接...");
+    println!("建立连接...");
     for (name, provider_config) in &config.providers {
         match provider_config {
             ProviderConfig::Ssh {
@@ -165,8 +240,19 @@ pub async fn run(args: DeployArgs) -> Result<()> {
             } => {
                 let server = SSHServer::new(host, *port, user, password)
                     .await
-                    .with_context(|| format!("创建 provider '{}' 的连接失败", name))?;
-                connections.insert(name.clone(), server);
+                    .with_context(|| format!("创建 provider '{}' 的 SSH 连接失败", name))?;
+                ssh_connections.insert(name.clone(), server);
+            }
+            ProviderConfig::S3 {
+                access_key_id,
+                secret_access_key,
+                region,
+                endpoint_url,
+            } => {
+                let manager = S3Manager::new(access_key_id, secret_access_key, region, endpoint_url)
+                    .await
+                    .with_context(|| format!("创建 provider '{}' 的 S3 连接失败", name))?;
+                s3_connections.insert(name.clone(), manager);
             }
         }
     }
@@ -185,12 +271,25 @@ pub async fn run(args: DeployArgs) -> Result<()> {
                 mode,
             } => {
                 println!("[步骤 {}/{}] {}", step_num, total_steps, name);
-                let server = connections
-                    .get(provider)
+
+                // 查找 provider 配置以确定类型
+                let provider_config = config.providers.get(provider)
                     .with_context(|| format!("Provider '{}' 未定义", provider))?;
-                execute_upload_step(server, provider, local, remote, mode.as_deref())
-                    .await
-                    .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
+
+                match provider_config {
+                    ProviderConfig::Ssh { .. } => {
+                        let server = ssh_connections.get(provider)
+                            .with_context(|| format!("Provider '{}' 未找到 SSH 连接", provider))?;
+                        execute_ssh_upload(server, local, remote, mode.as_deref()).await
+                            .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
+                    }
+                    ProviderConfig::S3 { .. } => {
+                        let manager = s3_connections.get(provider)
+                            .with_context(|| format!("Provider '{}' 未找到 S3 连接", provider))?;
+                        execute_s3_upload(manager, local, remote).await
+                            .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
+                    }
+                }
             }
             Step::Command {
                 name,
@@ -199,7 +298,7 @@ pub async fn run(args: DeployArgs) -> Result<()> {
                 commands,
             } => {
                 println!("[步骤 {}/{}] {}", step_num, total_steps, name);
-                let server = connections
+                let server = ssh_connections
                     .get(provider)
                     .with_context(|| format!("Provider '{}' 未定义", provider))?;
                 execute_command_step(server, provider, workdir, commands)
@@ -209,8 +308,8 @@ pub async fn run(args: DeployArgs) -> Result<()> {
         }
     }
 
-    // 关闭所有连接
-    for (provider, server) in connections {
+    // 关闭所有 SSH 连接
+    for (provider, server) in ssh_connections {
         println!("  → 关闭 {} 的连接", provider);
         if let Err(e) = server.close().await {
             eprintln!("警告: 关闭连接 {} 失败: {}", provider, e);
@@ -222,18 +321,17 @@ pub async fn run(args: DeployArgs) -> Result<()> {
     Ok(())
 }
 
-/// 执行上传步骤
+/// 执行 SSH 文件上传
 ///
-/// 通过 SFTP 上传文件或目录到远程服务器。
+/// 通过 SFTP 协议上传文件或目录到远程 SSH 服务器。
 /// 支持文件和目录两种模式，目录模式会同步整个目录内容。
-async fn execute_upload_step(
+async fn execute_ssh_upload(
     server: &SSHServer,
-    provider: &str,
     local: &str,
     remote: &str,
     mode: Option<&str>,
 ) -> Result<()> {
-    println!("  → Provider: {}", provider);
+    println!("  → 目标: SSH 服务器");
     println!("  → 本地: {}", local);
     println!("  → 远程: {}", remote);
 
@@ -264,6 +362,54 @@ async fn execute_upload_step(
         };
         server.exec_command("/", &chmod_cmd).await?;
         println!("  ✓ 权限设置成功: {}", file_mode);
+    }
+
+    Ok(())
+}
+
+/// 执行 S3 文件上传
+///
+/// 上传本地文件或目录到 S3 存储桶。
+/// remote 参数格式: "bucket-name/path/to/object"
+async fn execute_s3_upload(
+    manager: &S3Manager,
+    local: &str,
+    remote: &str,
+) -> Result<()> {
+    println!("  → 目标: S3 对象存储");
+    println!("  → 本地: {}", local);
+    println!("  → 远程: {}", remote);
+
+    let local_path = Path::new(local);
+    if !local_path.exists() {
+        anyhow::bail!("本地路径不存在: {}", local);
+    }
+
+    // 解析 remote: "bucket-name/path/to/object"
+    let (bucket, s3_prefix) = remote
+        .split_once('/')
+        .with_context(|| "S3 remote 格式错误，应为: bucket-name/path/to/object")?;
+
+    if local_path.is_file() {
+        // 上传单个文件
+        let file_name = local_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .context("无效的文件名")?;
+        let s3_key = if s3_prefix.is_empty() {
+            file_name.to_string()
+        } else {
+            format!("{}/{}", s3_prefix, file_name)
+        };
+
+        manager.upload_file(bucket, local_path, &s3_key).await?;
+        println!("  ✓ 文件上传成功: s3://{}/{}", bucket, s3_key);
+    } else if local_path.is_dir() {
+        // 同步整个目录
+        manager.upload_dir(bucket, local_path, s3_prefix).await?;
+        println!("  ✓ 目录同步完成: s3://{}/{}", bucket, s3_prefix);
+    } else {
+        anyhow::bail!("不支持的本地路径类型: {}", local);
     }
 
     Ok(())
