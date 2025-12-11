@@ -249,9 +249,10 @@ pub async fn run(args: DeployArgs) -> Result<()> {
                 region,
                 endpoint_url,
             } => {
-                let manager = S3Manager::new(access_key_id, secret_access_key, region, endpoint_url)
-                    .await
-                    .with_context(|| format!("创建 provider '{}' 的 S3 连接失败", name))?;
+                let manager =
+                    S3Manager::new(access_key_id, secret_access_key, region, endpoint_url)
+                        .await
+                        .with_context(|| format!("创建 provider '{}' 的 S3 连接失败", name))?;
                 s3_connections.insert(name.clone(), manager);
             }
         }
@@ -273,21 +274,31 @@ pub async fn run(args: DeployArgs) -> Result<()> {
                 println!("[步骤 {}/{}] {}", step_num, total_steps, name);
 
                 // 查找 provider 配置以确定类型
-                let provider_config = config.providers.get(provider)
+                let provider_config = config
+                    .providers
+                    .get(provider)
                     .with_context(|| format!("Provider '{}' 未定义", provider))?;
 
                 match provider_config {
                     ProviderConfig::Ssh { .. } => {
-                        let server = ssh_connections.get(provider)
+                        let server = ssh_connections
+                            .get(provider)
                             .with_context(|| format!("Provider '{}' 未找到 SSH 连接", provider))?;
-                        execute_ssh_upload(server, local, remote, mode.as_deref()).await
-                            .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
+                        execute_ssh_upload(server, local, remote, mode.as_deref())
+                            .await
+                            .with_context(|| {
+                                format!("步骤 {}/{} 执行失败", step_num, total_steps)
+                            })?;
                     }
                     ProviderConfig::S3 { .. } => {
-                        let manager = s3_connections.get(provider)
+                        let manager = s3_connections
+                            .get(provider)
                             .with_context(|| format!("Provider '{}' 未找到 S3 连接", provider))?;
-                        execute_s3_upload(manager, local, remote).await
-                            .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
+                        execute_s3_upload(manager, local, remote)
+                            .await
+                            .with_context(|| {
+                                format!("步骤 {}/{} 执行失败", step_num, total_steps)
+                            })?;
                     }
                 }
             }
@@ -371,11 +382,7 @@ async fn execute_ssh_upload(
 ///
 /// 上传本地文件或目录到 S3 存储桶。
 /// remote 参数格式: "bucket-name/path/to/object"
-async fn execute_s3_upload(
-    manager: &S3Manager,
-    local: &str,
-    remote: &str,
-) -> Result<()> {
+async fn execute_s3_upload(manager: &S3Manager, local: &str, remote: &str) -> Result<()> {
     println!("  → 目标: S3 对象存储");
     println!("  → 本地: {}", local);
     println!("  → 远程: {}", remote);
