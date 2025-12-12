@@ -142,18 +142,18 @@ pub async fn compress_item(
     println!("执行压缩: {} {}", seven_zip_path.display(), args.join(" "));
 
     // 执行 7-Zip 命令并等待完成
-    let output = tokio::process::Command::new(seven_zip_path)
+    let mut child = tokio::process::Command::new(seven_zip_path)
         .args(&args)
-        .stdout(Stdio::piped()) // 捕获标准输出
-        .stderr(Stdio::piped()) // 捕获标准错误
-        .output()
-        .await
+        .stdout(Stdio::inherit()) // 流式输出到终端
+        .stderr(Stdio::inherit()) // 流式输出到终端
+        .spawn()
         .with_context(|| format!("执行 7z 命令失败: {}", seven_zip_path.display()))?;
 
+    let status = child.wait().await.with_context(|| "等待 7z 命令完成失败")?;
+
     // 检查退出码，如果不成功则返回错误
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("7z 压缩失败: {}", stderr);
+    if !status.success() {
+        anyhow::bail!("7z 压缩失败，退出码: {}", status.code().unwrap_or(-1));
     }
 
     Ok(())

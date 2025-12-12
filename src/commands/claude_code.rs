@@ -108,17 +108,23 @@ fn configure_moonshot(api_key: String, config_path: &PathBuf, config: &mut Value
 fn install_claude_code() -> Result<()> {
     println!("正在安装 @anthropic-ai/claude-code...");
 
-    let output = Command::new("npm")
+    let mut child = Command::new("npm")
         .args(["install", "-g", "@anthropic-ai/claude-code@latest"])
-        .output()
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()
         .context("无法执行 npm 命令，请确保 Node.js 和 npm 已安装")?;
 
-    if output.status.success() {
+    let status = child.wait().context("等待 npm 命令完成失败")?;
+
+    if status.success() {
         println!("✅ @anthropic-ai/claude-code 安装成功!");
         Ok(())
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(anyhow::anyhow!("安装失败: {}", stderr))
+        Err(anyhow::anyhow!(
+            "安装失败，退出码: {}",
+            status.code().unwrap_or(-1)
+        ))
     }
 }
 

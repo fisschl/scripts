@@ -24,6 +24,12 @@
 //!   },
 //!   "steps": [
 //!     {
+//!       "type": "docker-build",
+//!       "name": "构建 Docker 镜像",
+//!       "target": "myapp:latest",
+//!       "dist": "./dist:/app/dist"
+//!     },
+//!     {
 //!       "type": "upload",
 //!       "name": "上传二进制",
 //!       "provider": "prod",
@@ -101,7 +107,6 @@ pub struct DeployConfig {
 /// 服务器提供者连接配置枚举
 ///
 /// 使用标签化枚举（internally tagged enum）区分不同类型的远程连接配置。
-/// 目前支持 SSH 和 S3 两种连接类型。
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum ProviderConfig {
@@ -144,7 +149,6 @@ pub enum ProviderConfig {
 /// 部署步骤定义枚举
 ///
 /// 表示部署过程中可以执行的不同类型的操作。
-/// 目前支持文件上传和远程命令执行两种步骤类型。
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum Step {
@@ -194,6 +198,24 @@ pub enum Step {
         ///
         /// 按顺序执行的远程命令字符串列表。
         commands: Vec<String>,
+    },
+    /// Docker 镜像构建步骤
+    ///
+    /// 在本地执行 Docker 镜像构建，无需远程提供者。
+    DockerBuild {
+        /// 步骤名称
+        ///
+        /// 用于在部署日志中标识此步骤，有助于识别执行进度。
+        name: String,
+        /// 目标镜像名称
+        ///
+        /// 构建的 Docker 镜像名称（如 "myapp:latest"）。
+        target: String,
+        /// 构建产物提取路径（可选）
+        ///
+        /// 格式: "宿主机路径:容器内路径"
+        /// 例如: "./dist:/app/dist" 表示将容器内的 /app/dist 目录复制到宿主机的 ./dist 目录
+        dist: Option<String>,
     },
 }
 
@@ -313,6 +335,12 @@ pub async fn run(args: DeployArgs) -> Result<()> {
                     .get(provider)
                     .with_context(|| format!("Provider '{}' 未定义", provider))?;
                 execute_command_step(server, provider, workdir, commands)
+                    .await
+                    .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
+            }
+            Step::DockerBuild { name, target, dist } => {
+                println!("[步骤 {}/{}] {}", step_num, total_steps, name);
+                execute_docker_build(target, dist.as_deref())
                     .await
                     .with_context(|| format!("步骤 {}/{} 执行失败", step_num, total_steps))?;
             }
@@ -443,5 +471,162 @@ async fn execute_command_step(
     server.exec_commands(workdir, &cmd_refs).await?;
 
     println!("  ✓ 命令执行成功");
+    Ok(())
+}
+
+/// 执行 Docker 镜像构建
+///
+/// 在本地执行 `docker build -t <target> .` 命令构建 Docker 镜像。
+/// 如果指定了 dist 参数，会创建临时容器并复制构建产物。
+async fn execute_docker_build(target: &str, dist: Option<&str>) -> Result<()> {
+    println!("  → 目标镜像: {}", target);
+    println!("  → 执行: docker build -t {} .", target);
+
+    use tokio::process::Command;
+
+    let mut child = Command::new("docker")
+        .args(["build", "-t", target, "."])
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()
+        .with_context(|| "启动 docker build 命令失败")?;
+
+    let status = child
+        .wait()
+        .await
+        .with_context(|| "等待 docker build 命令完成失败")?;
+
+    if status.success() {
+        println!("  ✓ Docker 镜像构建成功: {}", target);
+
+        // 如果指定了 dist 参数，提取构建产物
+        if let Some(dist_path) = dist {
+            extract_build_artifacts(target, dist_path).await?;
+        }
+
+        Ok(())
+    } else {
+        anyhow::bail!("Docker 构建失败，退出码: {}", status.code().unwrap_or(-1));
+    }
+}
+
+/// 从 Docker 镜像中提取构建产物
+///
+/// 创建临时容器，使用 docker cp 复制文件，然后删除容器。
+async fn extract_build_artifacts(target: &str, dist_path: &str) -> Result<()> {
+    println!("  → 提取构建产物: {}", dist_path);
+
+    // 解析 dist 路径格式: "宿主机路径:容器内路径"
+    let (host_path, container_path) = dist_path.split_once(':').with_context(|| {
+        format!(
+            "dist 参数格式错误，应为 '宿主机路径:容器内路径', 实际: {}",
+            dist_path
+        )
+    })?;
+
+    if host_path.is_empty() || container_path.is_empty() {
+        anyhow::bail!("dist 参数不能为空，格式: '宿主机路径:容器内路径'");
+    }
+
+    println!("  → 宿主机路径: {}", host_path);
+    println!("  → 容器内路径: {}", container_path);
+
+    use std::path::PathBuf;
+    use tokio::process::Command;
+
+    // 将相对路径转换为绝对路径
+    let host_path_abs = std::fs::canonicalize(host_path)
+        .or_else(|_| {
+            // 如果路径不存在，使用当前工作目录拼接相对路径
+            let current_dir = std::env::current_dir()?;
+            Ok::<PathBuf, std::io::Error>(current_dir.join(host_path))
+        })
+        .with_context(|| format!("转换路径失败: {}", host_path))?;
+
+    let host_path_str = host_path_abs.to_string_lossy();
+    println!("  → 绝对路径: {}", host_path_str);
+
+    // 创建宿主机目录（如果不存在）
+    if let Some(parent) = host_path_abs.parent() {
+        if !parent.exists() {
+            println!("  → 创建目录: {}", parent.display());
+            tokio::fs::create_dir_all(parent)
+                .await
+                .with_context(|| format!("创建目录失败: {}", parent.display()))?;
+        }
+    }
+
+    // 创建临时容器
+    println!("  → 创建临时容器...");
+    let create_output = Command::new("docker")
+        .args(["create", target])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::inherit())
+        .output()
+        .await
+        .with_context(|| "执行 docker create 命令失败")?;
+
+    if !create_output.status.success() {
+        let stderr = String::from_utf8_lossy(&create_output.stderr);
+        anyhow::bail!("创建临时容器失败: {}", stderr);
+    }
+
+    let container_id = String::from_utf8_lossy(&create_output.stdout)
+        .trim()
+        .to_string();
+    if container_id.is_empty() {
+        anyhow::bail!("获取容器 ID 失败");
+    }
+
+    println!("  → 临时容器 ID: {}", container_id);
+
+    // 复制文件
+    println!("  → 复制文件...");
+    let cp_status = Command::new("docker")
+        .args([
+            "cp",
+            &format!("{}:{}", container_id, container_path),
+            &host_path_str,
+        ])
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status()
+        .await
+        .with_context(|| "执行 docker cp 命令失败")?;
+
+    if !cp_status.success() {
+        // 删除容器（即使复制失败）
+        let _ = Command::new("docker")
+            .args(["rm", "-f", &container_id])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .await;
+
+        anyhow::bail!("复制文件失败，退出码: {}", cp_status.code().unwrap_or(-1));
+    }
+
+    println!("  ✓ 文件复制成功");
+
+    // 删除临时容器
+    println!("  → 删除临时容器...");
+    let rm_status = Command::new("docker")
+        .args(["rm", "-f", &container_id])
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status()
+        .await
+        .with_context(|| "执行 docker rm 命令失败")?;
+
+    if !rm_status.success() {
+        eprintln!(
+            "警告: 删除临时容器失败，退出码: {}",
+            rm_status.code().unwrap_or(-1)
+        );
+    } else {
+        println!("  ✓ 临时容器已删除");
+    }
+
+    println!("  ✓ 构建产物提取完成");
     Ok(())
 }
