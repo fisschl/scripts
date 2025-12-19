@@ -1,4 +1,3 @@
-pub mod claude_code;
 pub mod compress_delete;
 pub mod deploy;
 pub mod file_copy_rename;

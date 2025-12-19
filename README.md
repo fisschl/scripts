@@ -10,6 +10,7 @@
 - **file-copy-rename**：将文件从源目录复制到目标目录，使用哈希值重命名以避免重复
 - **tar**：使用 tar.zst 格式压缩或解压缩文件和目录
 - **find-unused-files**：查找目录中未被引用的资源文件
+- **deploy**：读取 JSON 配置文件并执行部署步骤（支持 SSH 和 S3）
 
 ## 前提条件
 
@@ -45,6 +46,7 @@ cargo run --release -- compress-delete [参数]
 cargo run --release -- file-copy-rename [参数]
 cargo run --release -- tar [参数]
 cargo run --release -- find-unused-files [参数]
+cargo run --release -- deploy [参数]
 
 # 方式 2：运行编译后的可执行文件
 .\scripts.exe compress-delete
@@ -206,6 +208,83 @@ scripts find-unused-files --dir ./public --delete
 - 搜索结果可能有误报，建议人工核实后再删除
 - 动态引用的文件（如通过变量拼接的路径）可能无法检测到
 - 建议先在不加 `--delete` 参数的情况下运行，确认结果
+
+### 5. deploy
+
+**功能说明**：
+
+- 读取 JSON 配置文件并按顺序执行部署步骤
+- 支持通过 SSH 连接到远程服务器，执行文件上传和远程命令操作
+- 支持 S3 对象存储上传
+- 支持 Docker 镜像构建和产物提取
+- 任意步骤失败时立即停止部署
+
+**配置文件示例**：
+
+```json
+{
+  "providers": {
+    "prod": {
+      "type": "ssh",
+      "host": "example.com",
+      "user": "deploy",
+      "port": 22,
+      "password": "your-password"
+    },
+    "s3-storage": {
+      "type": "s3",
+      "access-key-id": "AKIAIOSFODNN7EXAMPLE",
+      "secret-access-key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      "region": "us-east-1",
+      "endpoint-url": "https://s3.amazonaws.com"
+    }
+  },
+  "steps": [
+    {
+      "type": "docker-build",
+      "name": "构建 Docker 镜像",
+      "target": "myapp:latest",
+      "dist": "./dist:/app/dist"
+    },
+    {
+      "type": "upload",
+      "name": "上传二进制",
+      "provider": "prod",
+      "local": "./dist/app",
+      "remote": "/opt/app/app",
+      "mode": "755"
+    },
+    {
+      "type": "command",
+      "name": "重启服务",
+      "provider": "prod",
+      "workdir": "/opt/app",
+      "commands": [
+        "systemctl stop app",
+        "systemctl start app",
+        "systemctl status app --no-pager"
+      ]
+    }
+  ]
+}
+```
+
+**使用方法**：
+
+```bash
+# 使用配置文件执行部署
+scripts deploy --config ./deploy-config.json
+```
+
+**参数说明**：
+
+- `[-c, --config] <CONFIG>`: JSON 格式的部署配置文件路径
+
+**⚠️ 注意事项**：
+
+- 配置文件中的密码和密钥应妥善保管，避免泄露
+- 建议在测试环境中验证部署步骤后再用于生产环境
+- SSH 和 S3 连接需要正确的网络权限和凭证
 
 ## 技术栈
 
