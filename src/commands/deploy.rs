@@ -33,8 +33,7 @@
 //!       "type": "upload",
 //!       "name": "上传二进制",
 //!       "provider": "prod",
-//!       "local": "./dist/app",
-//!       "remote": "/opt/app/app",
+//!       "upload": "./dist/app:/opt/app/app",
 //!       "mode": "755"
 //!     },
 //!     {
@@ -164,15 +163,11 @@ pub enum Step {
         ///
         /// 引用 DeployConfig.providers 中定义的提供者配置名称。
         provider: String,
-        /// 本地文件或目录路径
+        /// 上传路径配置
         ///
-        /// 相对于当前工作目录的本地文件或目录路径。
-        local: String,
-        /// 远程目标路径
-        ///
-        /// 对于 SSH：远程服务器上的目标路径。
-        /// 对于 S3：存储桶中的目标对象键（key）。
-        remote: String,
+        /// 格式: "本地路径:远程路径"
+        /// 例如: "./dist/app:/opt/app/app"
+        upload: String,
         /// 文件权限模式（可选）
         ///
         /// 仅适用于 SSH 上传，设置远程文件的权限（如 "755"）。
@@ -289,11 +284,22 @@ pub async fn run(args: DeployArgs) -> Result<()> {
             Step::Upload {
                 name,
                 provider,
-                local,
-                remote,
+                upload,
                 mode,
             } => {
                 println!("[步骤 {}/{}] {}", step_num, total_steps, name);
+
+                // 解析 upload 参数格式: "local:remote"
+                let (local, remote) = upload.split_once(':').with_context(|| {
+                    format!(
+                        "upload 参数格式错误，应为 '本地路径:远程路径', 实际: {}",
+                        upload
+                    )
+                })?;
+
+                if local.is_empty() || remote.is_empty() {
+                    anyhow::bail!("upload 参数不能为空，格式: '本地路径:远程路径'");
+                }
 
                 // 查找 provider 配置以确定类型
                 let provider_config = config
