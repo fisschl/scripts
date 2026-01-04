@@ -168,10 +168,7 @@ pub async fn compress_item(
 ///
 /// 1. 跳过工作目录本身
 /// 2. 跳过隐藏文件和目录（以 `.` 开头）
-/// 3. 跳过指定扩展名的文件（不带点格式）：
-///    - **开发文件**: `ts`, `mjs`, `rs`, `exe`
-///    - **常见压缩**: `7z`, `zip`, `rar`, `tar`, `gz`
-///    - **Java 文件**: `jar`, `war`, `ear`
+/// 3. 跳过压缩包文件
 ///
 /// # 参数
 ///
@@ -184,7 +181,7 @@ pub async fn compress_item(
 pub fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
     // 定义要跳过的文件扩展名
     let skip_extensions = [
-        "ts", "mjs", "rs", "exe", "7z", "zip", "rar", "tar", "gz", "jar", "war", "ear",
+        "7z", "zip", "rar", "tar", "gz", "bz2", "xz", "zst", "tgz", "tbz2", "txz",
     ];
 
     // 使用 std::fs::read_dir 读取目录项，只遍历首层
