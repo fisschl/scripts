@@ -33,32 +33,19 @@ fn find_7z_executable_inner() -> PathBuf {
     if which::which("7z").is_ok() {
         return PathBuf::from("7z");
     }
-
+    let home_dir = dirs::home_dir().unwrap();
     let common_paths = [
         PathBuf::from("C:\\Program Files\\7-Zip\\7z.exe"),
         PathBuf::from("C:\\Program Files (x86)\\7-Zip\\7z.exe"),
         PathBuf::from("C:\\7-Zip\\7z.exe"),
+        home_dir.join("AppData\\Local\\Programs\\7-Zip\\7z.exe"),
+        home_dir.join("7-Zip\\7z.exe"),
     ];
-
     for path in &common_paths {
         if path.exists() {
             return path.clone();
         }
     }
-
-    if let Some(home_dir) = dirs::home_dir() {
-        let user_paths = [
-            home_dir.join("AppData\\Local\\Programs\\7-Zip\\7z.exe"),
-            home_dir.join("7-Zip\\7z.exe"),
-        ];
-
-        for path in &user_paths {
-            if path.exists() {
-                return path.clone();
-            }
-        }
-    }
-
     panic!("未找到 7z 可执行文件。请从 https://www.7-zip.org/ 安装 7-Zip");
 }
 
