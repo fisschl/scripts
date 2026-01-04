@@ -3,12 +3,11 @@
 //! 一个简洁高效的 Rust 命令行工具，用于压缩指定目录下的文件和子目录，
 //! 然后删除原始文件，仅保留压缩后的 7z 文件。
 
+use crate::utils::compress::compress_7z;
 use crate::utils::filesystem::{get_file_extension, remove_path};
 use anyhow::{Context, Result};
 use clap::Args;
-use dirs::home_dir;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 
 /// 命令行参数结构体
 ///
@@ -50,113 +49,6 @@ pub struct CompressDeleteArgs {
         long_help = "启用后同时加密文件内容和文件名（-mhe=on）。不指定则不加密。"
     )]
     pub password: Option<String>,
-}
-
-/// 查找系统中安装的 7-Zip 可执行文件
-///
-/// 按照优先级顺序查找 7-Zip：
-/// 1. PATH 环境变量中的 `7z` 命令
-/// 2. Windows 常见安装路径（Program Files 和 Program Files (x86)）
-/// 3. 用户目录下的安装路径
-///
-/// # 返回值
-///
-/// * `Ok(PathBuf)` - 找到的 7z 可执行文件路径
-/// * `Err(anyhow::Error)` - 未找到 7z 可执行文件
-pub fn find_7z_executable() -> Result<PathBuf> {
-    // 首先检查 PATH 环境变量中的 7z 命令
-    // 这是最常见和最方便的方式
-    if which::which("7z").is_ok() {
-        return Ok(PathBuf::from("7z"));
-    }
-
-    // 检查常见的 Windows 安装路径，按优先级排序
-    // 7-Zip 通常安装在 Program Files 目录下
-    let common_paths = vec![
-        PathBuf::from("C:\\Program Files\\7-Zip\\7z.exe"),
-        PathBuf::from("C:\\Program Files (x86)\\7-Zip\\7z.exe"),
-        PathBuf::from("C:\\7-Zip\\7z.exe"),
-    ];
-
-    // 首先检查常见安装路径
-    for path in &common_paths {
-        if path.exists() {
-            return Ok(path.clone());
-        }
-    }
-
-    // 常见路径没找到，检查用户目录
-    // 支持用户自定义安装位置
-    if let Some(home_dir) = home_dir() {
-        let user_paths = vec![
-            home_dir.join("AppData\\Local\\Programs\\7-Zip\\7z.exe"),
-            home_dir.join("7-Zip\\7z.exe"),
-        ];
-
-        for path in &user_paths {
-            if path.exists() {
-                return Ok(path.clone());
-            }
-        }
-    }
-
-    // 如果所有路径都未找到，返回错误并提供下载链接
-    anyhow::bail!("未找到 7z 可执行文件。请从 https://www.7-zip.org/ 安装 7-Zip");
-}
-
-/// 使用 7-Zip 压缩文件或目录
-///
-/// 异步执行 7-Zip 命令来压缩指定的文件或目录。
-/// 使用默认压缩设置,提供良好的压缩比和速度平衡。
-///
-/// # 参数
-///
-/// * `item_path` - 要压缩的文件或目录路径
-/// * `output_path` - 输出的 7z 压缩文件路径
-/// * `seven_zip_path` - 7-Zip 可执行文件路径
-/// * `password` - 可选的压缩文件密码
-///
-/// # 返回值
-///
-/// * `Ok(())` - 压缩成功
-/// * `Err(anyhow::Error)` - 压缩失败,包含错误信息
-pub async fn compress_item(
-    item_path: &Path,
-    output_path: &Path,
-    seven_zip_path: &Path,
-    password: Option<&str>,
-) -> Result<()> {
-    // 构建 7-Zip 命令参数
-    let mut args = vec![
-        "a".to_string(), // "a" 表示添加到压缩文件
-        output_path.to_string_lossy().to_string(),
-        item_path.to_string_lossy().to_string(),
-    ];
-
-    // 如果指定了密码,添加密码参数和文件名加密选项
-    if let Some(pwd) = password {
-        args.push(format!("-p{}", pwd)); // 设置密码
-        args.push("-mhe=on".to_string()); // 加密文件头(文件名)
-    }
-
-    println!("执行压缩: {} {}", seven_zip_path.display(), args.join(" "));
-
-    // 执行 7-Zip 命令并等待完成
-    let mut child = tokio::process::Command::new(seven_zip_path)
-        .args(&args)
-        .stdout(Stdio::inherit()) // 流式输出到终端
-        .stderr(Stdio::inherit()) // 流式输出到终端
-        .spawn()
-        .with_context(|| format!("执行 7z 命令失败: {}", seven_zip_path.display()))?;
-
-    let status = child.wait().await.with_context(|| "等待 7z 命令完成失败")?;
-
-    // 检查退出码，如果不成功则返回错误
-    if !status.success() {
-        anyhow::bail!("7z 压缩失败，退出码: {}", status.code().unwrap_or(-1));
-    }
-
-    Ok(())
 }
 
 /// 收集要处理的项目
@@ -226,7 +118,6 @@ pub fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
 ///
 /// * `item_path` - 要处理的文件或目录路径
 /// * `work_directory` - 工作目录路径(用于存放压缩文件)
-/// * `seven_zip_path` - 7-Zip 可执行文件路径
 /// * `password` - 可选的压缩文件密码
 ///
 /// # 返回值
@@ -236,7 +127,6 @@ pub fn collect_items(work_directory: &Path) -> Result<Vec<PathBuf>> {
 pub async fn process_item(
     item_path: &Path,
     work_directory: &Path,
-    seven_zip_path: &Path,
     password: Option<&str>,
 ) -> Result<()> {
     // 提取项目名称用于显示和生成输出文件名
@@ -260,7 +150,7 @@ pub async fn process_item(
     }
 
     // 使用 7-Zip 压缩项目
-    compress_item(item_path, &output_path, seven_zip_path, password).await?;
+    compress_7z(item_path, &output_path, password).await;
 
     // 根据是否使用密码显示不同的提示信息
     if password.is_some() {
@@ -331,19 +221,11 @@ pub async fn run(args: CompressDeleteArgs) -> anyhow::Result<()> {
 
     println!("找到 {} 个项目要处理\n", items.len());
 
-    // 查找系统安装的 7-Zip 可执行文件
-    let seven_zip_path = find_7z_executable().context("找不到 7z 可执行文件")?;
-
     // 逐个处理项目，遇到失败直接返回错误
     for item in items {
-        process_item(
-            &item,
-            &work_directory,
-            &seven_zip_path,
-            args.password.as_deref(),
-        )
-        .await
-        .with_context(|| format!("处理 {} 失败", item.display()))?;
+        process_item(&item, &work_directory, args.password.as_deref())
+            .await
+            .with_context(|| format!("处理 {} 失败", item.display()))?;
     }
 
     // 显示完成信息
