@@ -9,9 +9,11 @@
 //! - 子串匹配,大小写不敏感
 //! - 计算目录递归总大小
 //! - 输出完整路径、大小和修改时间
-//! - 权限不足时抛出异常
+//! - 权限不足时自动跳过
 
-use anyhow::{Context, Result};
+use crate::utils::filesystem::calculate_dir_size;
+use anyhow::Result;
+use bytesize::ByteSize;
 use chrono::{DateTime, Local};
 use clap::Args;
 use std::collections::HashMap;
@@ -19,7 +21,6 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
-use walkdir::WalkDir;
 
 /// 命令行参数结构体
 #[derive(Args, Debug)]
@@ -73,53 +74,72 @@ pub struct MatchedItem {
 ///
 /// # 返回值
 ///
-/// 返回扫描根目录路径列表。如果某个环境变量未定义,会跳过该路径。
+/// 返回扫描根目录路径列表。如果某个环境变量未定义,会跳过该路径,并输出提示。
 fn build_scan_roots() -> Result<Vec<PathBuf>> {
     let mut roots = Vec::new();
 
     // 1. C:\Program Files
-    if let Ok(program_files) = env::var("ProgramFiles") {
-        roots.push(PathBuf::from(program_files));
+    match env::var("ProgramFiles") {
+        Ok(program_files) => roots.push(PathBuf::from(program_files)),
+        Err(_) => println!("环境变量 ProgramFiles 未设置, 已跳过 C:\\Program Files"),
     }
 
     // 2. C:\Program Files (x86)
-    if let Ok(program_files_x86) = env::var("ProgramFiles(x86)") {
-        roots.push(PathBuf::from(program_files_x86));
+    match env::var("ProgramFiles(x86)") {
+        Ok(program_files_x86) => roots.push(PathBuf::from(program_files_x86)),
+        Err(_) => println!("环境变量 ProgramFiles(x86) 未设置, 已跳过 C:\\Program Files (x86)"),
     }
 
     // 3. C:\ProgramData
-    if let Ok(program_data) = env::var("ProgramData") {
-        roots.push(PathBuf::from(program_data));
+    match env::var("ProgramData") {
+        Ok(program_data) => roots.push(PathBuf::from(program_data)),
+        Err(_) => println!("环境变量 ProgramData 未设置, 已跳过 C:\\ProgramData"),
     }
 
-    // 4. C:\Users\[用户名]
-    if let Ok(user_profile) = env::var("USERPROFILE") {
-        roots.push(PathBuf::from(user_profile));
+    // 4. C:\Users\\[用户名]
+    match env::var("USERPROFILE") {
+        Ok(user_profile) => roots.push(PathBuf::from(user_profile)),
+        Err(_) => println!("环境变量 USERPROFILE 未设置, 已跳过用户主目录"),
     }
 
-    // 5. C:\Users\[用户名]\AppData\Roaming
-    if let Ok(appdata) = env::var("APPDATA") {
-        roots.push(PathBuf::from(appdata));
+    // 5. C:\Users\\[用户名]\\AppData\\Roaming
+    match env::var("APPDATA") {
+        Ok(appdata) => roots.push(PathBuf::from(appdata)),
+        Err(_) => println!("环境变量 APPDATA 未设置, 已跳过 AppData\\Roaming 目录"),
     }
 
-    // 6. C:\Users\[用户名]\AppData\Local
-    if let Ok(local_appdata) = env::var("LOCALAPPDATA") {
-        let local_appdata_path = PathBuf::from(&local_appdata);
-        roots.push(local_appdata_path.clone());
-
-        // 7. C:\Users\[用户名]\AppData\Local\Low
-        let low_path = local_appdata_path.join("Low");
-        if low_path.exists() {
-            roots.push(low_path);
+    // 6. C:\Users\\[用户名]\\AppData\\Local
+    match env::var("LOCALAPPDATA") {
+        Ok(local_appdata) => {
+            let local_appdata_path = PathBuf::from(&local_appdata);
+            roots.push(local_appdata_path);
         }
+        Err(_) => println!("环境变量 LOCALAPPDATA 未设置, 已跳过 AppData\\Local"),
     }
 
     // 去重(虽然正常情况下不会有重复)
     roots.sort();
     roots.dedup();
 
-    // 过滤出存在的路径
-    let existing_roots: Vec<PathBuf> = roots.into_iter().filter(|p| p.exists()).collect();
+    // 过滤出存在的路径, 同时输出不存在的路径
+    let mut existing_roots = Vec::new();
+    let mut missing_roots = Vec::new();
+
+    for p in roots {
+        if p.exists() {
+            existing_roots.push(p);
+        } else {
+            missing_roots.push(p);
+        }
+    }
+
+    if !missing_roots.is_empty() {
+        println!("以下扫描目录不存在, 已跳过:");
+        for p in &missing_roots {
+            println!("  - {}", p.display());
+        }
+        println!();
+    }
 
     if existing_roots.is_empty() {
         anyhow::bail!("未找到任何有效的扫描根目录,请检查系统环境变量");
@@ -155,16 +175,8 @@ fn scan_directory(
         // 读取当前目录的所有子项
         let entries = match fs::read_dir(&current_path) {
             Ok(entries) => entries,
-            Err(e) => {
-                // 权限不足时抛出异常
-                if e.kind() == std::io::ErrorKind::PermissionDenied {
-                    anyhow::bail!(
-                        "无法访问目录(权限不足): {}\n错误信息: {}\n提示: 请使用管理员权限运行此工具",
-                        current_path.display(),
-                        e
-                    );
-                }
-                // 其他错误跳过
+            Err(_) => {
+                // 权限不足或其他错误时跳过
                 continue;
             }
         };
@@ -172,16 +184,7 @@ fn scan_directory(
         for entry in entries {
             let entry = match entry {
                 Ok(e) => e,
-                Err(e) => {
-                    if e.kind() == std::io::ErrorKind::PermissionDenied {
-                        anyhow::bail!(
-                            "无法访问目录项(权限不足): {}\n错误信息: {}\n提示: 请使用管理员权限运行此工具",
-                            current_path.display(),
-                            e
-                        );
-                    }
-                    continue;
-                }
+                Err(_) => continue,
             };
 
             let entry_path = entry.path();
@@ -195,16 +198,7 @@ fn scan_directory(
             // 判断是目录还是文件
             let metadata = match entry.metadata() {
                 Ok(m) => m,
-                Err(e) => {
-                    if e.kind() == std::io::ErrorKind::PermissionDenied {
-                        anyhow::bail!(
-                            "无法访问文件元数据(权限不足): {}\n错误信息: {}\n提示: 请使用管理员权限运行此工具",
-                            entry_path.display(),
-                            e
-                        );
-                    }
-                    continue;
-                }
+                Err(_) => continue,
             };
 
             let is_dir = metadata.is_dir();
@@ -228,116 +222,6 @@ fn scan_directory(
     }
 
     Ok(matched_items)
-}
-
-/// 计算文件或目录的大小
-///
-/// 对于文件,直接返回文件大小。
-/// 对于目录,递归遍历所有文件并累加大小。
-///
-/// # 参数
-///
-/// * `path` - 文件或目录路径
-///
-/// # 返回值
-///
-/// 返回大小(字节数)
-fn calculate_size(path: &Path) -> Result<u64> {
-    let metadata = fs::metadata(path).with_context(|| {
-        format!(
-            "无法读取文件元数据(权限不足): {}\n提示: 请使用管理员权限运行此工具",
-            path.display()
-        )
-    })?;
-
-    if metadata.is_file() {
-        Ok(metadata.len())
-    } else if metadata.is_dir() {
-        let mut total_size = 0u64;
-
-        for entry in WalkDir::new(path).into_iter() {
-            let entry = match entry {
-                Ok(e) => e,
-                Err(e) => {
-                    // 权限不足时抛出异常
-                    if let Some(io_error) = e.io_error() {
-                        if io_error.kind() == std::io::ErrorKind::PermissionDenied {
-                            anyhow::bail!(
-                                "无法访问目录(权限不足): {}\n错误信息: {}\n提示: 请使用管理员权限运行此工具",
-                                path.display(),
-                                io_error
-                            );
-                        }
-                    }
-                    continue;
-                }
-            };
-
-            if entry.file_type().is_file() {
-                let file_metadata = match entry.metadata() {
-                    Ok(m) => m,
-                    Err(_e) => {
-                        // 权限不足时抛出异常
-                        anyhow::bail!(
-                            "无法读取文件元数据(权限不足): {}\n提示: 请使用管理员权限运行此工具",
-                            entry.path().display()
-                        );
-                    }
-                };
-                total_size += file_metadata.len();
-            }
-        }
-
-        Ok(total_size)
-    } else {
-        Ok(0)
-    }
-}
-
-/// 格式化文件大小为人类可读格式
-///
-/// 自动选择合适的单位(B/KB/MB/GB/TB)。
-///
-/// # 参数
-///
-/// * `size` - 字节数
-///
-/// # 返回值
-///
-/// 返回格式化的大小字符串,例如 "1.5 GB"
-fn format_size(size: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = KB * 1024;
-    const GB: u64 = MB * 1024;
-    const TB: u64 = GB * 1024;
-
-    if size >= TB {
-        format!("{:.1} TB", size as f64 / TB as f64)
-    } else if size >= GB {
-        format!("{:.1} GB", size as f64 / GB as f64)
-    } else if size >= MB {
-        format!("{:.1} MB", size as f64 / MB as f64)
-    } else if size >= KB {
-        format!("{:.1} KB", size as f64 / KB as f64)
-    } else {
-        format!("{} B", size)
-    }
-}
-
-/// 格式化时间为指定格式
-///
-/// 格式: YYYY-MM-DD HH:MM:SS
-///
-/// # 参数
-///
-/// * `time` - 系统时间
-///
-/// # 返回值
-///
-/// 返回格式化的时间字符串
-fn format_time(time: SystemTime) -> String {
-    let datetime: DateTime<Local> = time.into();
-    datetime.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
 /// 命令执行函数
@@ -383,29 +267,13 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
             let modified_time = match fs::metadata(&path) {
                 Ok(metadata) => match metadata.modified() {
                     Ok(time) => time,
-                    Err(e) => {
-                        if e.kind() == std::io::ErrorKind::PermissionDenied {
-                            anyhow::bail!(
-                                "无法读取文件修改时间(权限不足): {}\n提示: 请使用管理员权限运行此工具",
-                                path.display()
-                            );
-                        }
-                        continue;
-                    }
+                    Err(_) => continue,
                 },
-                Err(e) => {
-                    if e.kind() == std::io::ErrorKind::PermissionDenied {
-                        anyhow::bail!(
-                            "无法读取文件元数据(权限不足): {}\n提示: 请使用管理员权限运行此工具",
-                            path.display()
-                        );
-                    }
-                    continue;
-                }
+                Err(_) => continue,
             };
 
             // 计算大小
-            let size = calculate_size(&path)?;
+            let size = calculate_dir_size(&path);
 
             all_matched_items.push(MatchedItem {
                 path,
@@ -446,8 +314,12 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
                         };
 
                         println!("  {} {}", type_label, item.path.display());
-                        println!("         大小: {}", format_size(item.size));
-                        println!("         修改时间: {}", format_time(item.modified_time));
+                        println!("         大小: {}", ByteSize(item.size));
+                        let datetime: DateTime<Local> = item.modified_time.into();
+                        println!(
+                            "         修改时间: {}",
+                            datetime.format("%Y-%m-%d %H:%M:%S")
+                        );
                         println!();
                     }
                 }
@@ -473,7 +345,7 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     println!("匹配的目录: {} 个", dir_count);
     println!("匹配的文件: {} 个", file_count);
     println!("总计: {} 项", all_matched_items.len());
-    println!("总大小: {}", format_size(total_size));
+    println!("总大小: {}", ByteSize(total_size));
 
     Ok(())
 }
