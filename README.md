@@ -24,32 +24,6 @@
 
 ## 安装方法
 
-### 从源码构建
-
-```bash
-# 克隆仓库
-git clone <repository-url>
-cd scripts
-
-# 构建项目
-cargo build --release
-
-# 构建后的可执行文件位于 target\release\scripts.exe
-```
-
-### 直接运行
-
-```bash
-# 方式 1：通过 cargo 直接运行（推荐开发时）
-cargo run --release -- compress-delete [参数]
-cargo run --release -- file-copy-rename [参数]
-cargo run --release -- find-unused-files [参数]
-cargo run --release -- residue-search [参数]
-
-# 方式 2：运行编译后的可执行文件
-.\scripts.exe compress-delete
-```
-
 ### 安装到系统
 
 如果你想将工具安装到系统，可以使用以下命令：
@@ -59,6 +33,26 @@ cargo install --path .
 ```
 
 安装后，`scripts` 命令将可在任何地方使用。
+
+### 直接运行
+
+通过 cargo 直接运行（推荐开发时）
+
+```bash
+cargo run --release -- compress-delete [参数]
+cargo run --release -- file-copy-rename [参数]
+cargo run --release -- find-unused-files [参数]
+cargo run --release -- residue-search [参数]
+```
+
+### 从源码构建
+
+```bash
+# 构建项目
+cargo build --release
+
+# 构建后的可执行文件位于 target\release\scripts.exe
+```
 
 ## 工具列表
 
