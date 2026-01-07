@@ -11,17 +11,6 @@
 - **find-unused-files**：查找目录中未被引用的资源文件
 - **residue-search**：查找 Windows 系统中软件卸载后的残留目录
 
-## 前提条件
-
-- **Rust**：确保已安装 Rust 工具链
-
-  - 下载地址：https://rustup.rs/
-  - 安装方法：下载并运行 rustup-init.exe
-
-- **7-Zip**：用于运行 compress_delete 工具
-  - 下载地址：https://www.7-zip.org/
-  - 安装命令：`winget install 7zip.7zip`
-
 ## 安装方法
 
 ### 安装到系统
