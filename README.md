@@ -8,8 +8,8 @@
 
 - **compress-delete**：使用 7-Zip 压缩文件和目录，然后删除原始项目
 - **file-copy-rename**：将文件从源目录复制到目标目录，使用哈希值重命名以避免重复
-- **tar**：使用 tar.zst 格式压缩或解压缩文件和目录
 - **find-unused-files**：查找目录中未被引用的资源文件
+- **residue-search**：查找 Windows 系统中软件卸载后的残留目录
 
 ## 前提条件
 
@@ -43,8 +43,8 @@ cargo build --release
 # 方式 1：通过 cargo 直接运行（推荐开发时）
 cargo run --release -- compress-delete [参数]
 cargo run --release -- file-copy-rename [参数]
-cargo run --release -- tar [参数]
 cargo run --release -- find-unused-files [参数]
+cargo run --release -- residue-search [参数]
 
 # 方式 2：运行编译后的可执行文件
 .\scripts.exe compress-delete
@@ -134,39 +134,7 @@ scripts file-copy-rename -s ./source -t ./target -e "mp4,webm" -m
 - `[--extensions, -e] <EXTENSIONS>`: 文件扩展名（逗号分隔，不带点），默认为 `mp4,avi,mkv,mov,wmv,flv,webm`（常见视频格式）
 - `[--move, -m]`: 启用移动模式（复制后删除源文件）
 
-### 3. tar
-
-**功能说明**：
-
-- 使用 tar.zst 格式压缩文件或目录
-- 从 tar.zst 归档中解压缩文件
-- 支持可配置的压缩级别（1-22）
-- 流式处理，内存占用低
-- 自动识别压缩或解压模式
-
-**使用方法**：
-
-```bash
-# 压缩文件或目录（输出到同级目录）
-scripts tar ./my-folder
-scripts tar ./my-file.txt
-
-# 解压 tar.zst 文件（解压到归档所在目录）
-scripts tar ./my-folder.tar.zst
-
-# 指定压缩级别（1-22，默认6）
-scripts tar ./my-folder --level 10
-scripts tar ./my-folder -l 3
-```
-
-**参数说明**：
-
-- `<SOURCE>`: 源路径（文件/目录或 .tar.zst 归档）
-  - 当传入 .tar.zst 文件时，执行解压操作
-  - 当传入文件或目录时，执行压缩操作，输出同名 .tar.zst 文件到父目录
-- `[--level, -l] <LEVEL>`: 压缩级别（1-22，默认 6），仅在压缩时有效
-
-### 4. find-unused-files
+### 3. find-unused-files
 
 **功能说明**：
 
@@ -207,21 +175,47 @@ scripts find-unused-files --dir ./public --delete
 - 动态引用的文件（如通过变量拼接的路径）可能无法检测到
 - 建议先在不加 `--delete` 参数的情况下运行，确认结果
 
-## 技术栈
+### 4. residue-search
 
-- **Rust**：高性能系统编程语言
-- **clap**：命令行参数解析（支持子命令）
-- **tokio**：异步运行时
-- **walkdir**：目录遍历
-- **blake3**：高性能哈希算法
-- **bs58**：Base58 编码
-- **tar**：tar 归档格式支持
-- **zstd**：高效压缩算法
-- **anyhow**：错误处理
-- **which**：查找可执行文件
-- **dirs**：目录路径处理
-- **ignore**：gitignore 模式匹配
-- **grep-searcher/grep-regex**：高效文件内容搜索
+**功能说明**：
+
+- 扫描 Windows 系统常见目录，查找软件卸载残留目录
+- 支持子串匹配，大小写不敏感
+- 最多向下扫描 3 层目录
+- 仅匹配目录，不匹配文件
+- 计算目录递归总大小
+- 显示修改时间
+- 交互式多选删除
+
+**扫描位置**：
+
+- C:\Program Files
+- C:\Program Files (x86)
+- C:\ProgramData
+- C:\Users\[用户名]
+- C:\Users\[用户名]\AppData\Roaming
+- C:\Users\[用户名]\AppData\Local
+
+**使用方法**：
+
+```bash
+# 查找 Chrome 相关残留
+ scripts residue-search --software chrome
+
+# 使用短选项
+scripts residue-search -s "visual studio"
+```
+
+**参数说明**：
+
+- `[--software, -s] <NAME>`: 要查找的软件名称（必填）
+
+**⚠️ 注意事项**：
+
+- 删除操作不可逆，请谨慎确认选择的目录
+- 建议在删除前备份重要数据
+- 权限不足的目录会自动跳过
+- 请确保匹配的目录确实是软件残留，避免误删除系统文件
 
 ## 使用提示
 
@@ -239,10 +233,10 @@ scripts find-unused-files --dir ./public --delete
 
 7. **动态引用检测限制**：通过变量拼接或动态加载的资源路径可能无法被正确识别
 
+8. **residue-search 删除风险**：该工具会永久删除选中的目录，删除前请仔细确认匹配结果
+
+9. **软件残留识别**：请确保匹配的目录确实是软件残留，避免误删除系统文件或其他重要数据
+
 ## 贡献指南
 
 欢迎提交 Issue 和 Pull Request 来改进这些工具！
-
-## 许可证
-
-本项目采用 MIT 许可证 - 详情请查看 [LICENSE](LICENSE) 文件
