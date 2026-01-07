@@ -1,12 +1,13 @@
 //! # 软件卸载残留查找工具 (residue_search)
 //!
-//! 扫描 Windows 系统常见的软件安装和配置文件存储位置,查找与指定软件名匹配的目录和文件。
+//! 扫描 Windows 系统常见的软件安装和配置文件存储位置,查找与指定软件名匹配的目录。
 //!
 //! ## 功能特性
 //!
 //! - 扫描 7 个 Windows 系统常见目录
 //! - 向下递归最多 3 层
 //! - 子串匹配,大小写不敏感
+//! - 仅匹配目录,不匹配文件
 //! - 计算目录递归总大小
 //! - 输出完整路径、大小和修改时间
 //! - 权限不足时自动跳过
@@ -17,6 +18,7 @@ use bytesize::ByteSize;
 use chrono::{DateTime, Local};
 use clap::Args;
 use inquire::MultiSelect;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -27,8 +29,8 @@ use std::time::SystemTime;
 #[command(name = "residue-search")]
 #[command(version = "0.1.0")]
 #[command(
-    about = "查找软件卸载残留",
-    long_about = "扫描 Windows 系统常见目录,查找指定软件的卸载残留文件和目录。支持子串匹配(大小写不敏感),最多向下扫描 3 层目录。"
+    about = "查找软件卸载残留目录",
+    long_about = "扫描 Windows 系统常见目录,查找指定软件的卸载残留目录。支持子串匹配(大小写不敏感),最多向下扫描 3 层目录。仅匹配目录,不匹配文件。"
 )]
 pub struct ResidueSearchArgs {
     /// 要查找的软件名称
@@ -44,23 +46,12 @@ pub struct ResidueSearchArgs {
     pub software_name: String,
 }
 
-/// 匹配项类型
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ItemType {
-    /// 目录
-    Directory,
-    /// 文件
-    File,
-}
-
 /// 匹配项结构
 #[derive(Debug)]
 pub struct MatchedItem {
-    /// 匹配项的完整绝对路径
+    /// 匹配目录的完整绝对路径
     pub path: PathBuf,
-    /// 目录或文件
-    pub item_type: ItemType,
-    /// 大小(字节),目录为递归总大小
+    /// 大小(字节),目录递归总大小
     pub size: u64,
     /// 最后修改时间
     pub modified_time: SystemTime,
@@ -148,7 +139,7 @@ fn build_scan_roots() -> Result<Vec<PathBuf>> {
 
 /// 扫描目录查找匹配项
 ///
-/// 使用递归深度优先搜索,向下最多扫描指定层数,查找匹配软件名的目录和文件。
+/// 使用递归深度优先搜索,向下最多扫描指定层数,查找匹配软件名的目录。
 ///
 /// # 参数
 ///
@@ -158,7 +149,7 @@ fn build_scan_roots() -> Result<Vec<PathBuf>> {
 ///
 /// # 返回值
 ///
-/// 返回匹配项列表,每个匹配项包含路径、类型、大小和修改时间。
+/// 返回匹配的目录列表,每个匹配项包含路径、大小和修改时间。
 fn scan_directory(
     root: &Path,
     software_name_lower: &str,
@@ -169,7 +160,7 @@ fn scan_directory(
         depth: usize,
         max_depth: usize,
         software_name_lower: &str,
-        matched_items: &mut Vec<MatchedItem>,
+        matched_map: &mut HashMap<PathBuf, MatchedItem>,
     ) {
         // 读取当前目录的所有子项
         let entries = match fs::read_dir(current_path) {
@@ -194,63 +185,69 @@ fn scan_directory(
                 None => continue,
             };
 
-            // 判断是目录还是文件
+            // 判断是否为目录
             let metadata = match entry.metadata() {
                 Ok(m) => m,
                 Err(_) => continue,
             };
 
-            let is_dir = metadata.is_dir();
-            let item_type = if is_dir {
-                ItemType::Directory
-            } else {
-                ItemType::File
-            };
+            // 如果是文件,直接跳过
+            if !metadata.is_dir() {
+                continue;
+            }
 
-            let is_match = file_name.contains(software_name_lower);
+            // 检查目录名是否匹配软件名
+            if file_name.contains(software_name_lower) {
+                // 检查路径是否已经在哈希表中
+                if matched_map.contains_key(&entry_path) {
+                    // 已经添加过,跳过
+                    continue;
+                }
 
-            // 检查是否匹配软件名
-            if is_match {
                 // 获取修改时间,失败则跳过该项
                 let modified_time = match metadata.modified() {
                     Ok(time) => time,
                     Err(_) => continue,
                 };
 
-                // 计算大小: 文件直接使用 metadata.len(), 目录使用 calculate_dir_size
-                let size = if metadata.is_file() {
-                    metadata.len()
-                } else {
-                    calculate_dir_size(&entry_path)
-                };
+                // 计算目录大小
+                let size = calculate_dir_size(&entry_path);
 
-                matched_items.push(MatchedItem {
+                let item = MatchedItem {
                     path: entry_path.clone(),
-                    item_type,
                     size,
                     modified_time,
-                });
+                };
+
+                // 直接存储键值对
+                matched_map.insert(entry_path.clone(), item);
+
+                continue;
             }
 
-            // 如果是目录且深度未达到最大值,且当前目录未匹配,递归继续遍历
-            if is_dir && depth < max_depth && !is_match {
-                scan_recursive(
-                    &entry_path,
-                    depth + 1,
-                    max_depth,
-                    software_name_lower,
-                    matched_items,
-                );
+            // 如果深度已达到最大值,停止递归
+            if depth >= max_depth {
+                continue;
             }
+
+            // 目录未匹配,继续递归遍历
+            scan_recursive(
+                &entry_path,
+                depth + 1,
+                max_depth,
+                software_name_lower,
+                matched_map,
+            );
         }
     }
 
-    let mut matched_items = Vec::new();
+    let mut matched_map = HashMap::new();
 
     // 从根目录开始,深度为 0
-    scan_recursive(root, 0, max_depth, software_name_lower, &mut matched_items);
+    scan_recursive(root, 0, max_depth, software_name_lower, &mut matched_map);
 
-    Ok(matched_items)
+    // 将 HashMap 转换为 Vec
+    Ok(matched_map.into_values().collect())
 }
 
 /// 命令执行函数
@@ -298,21 +295,13 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     println!();
 
     if all_matched_items.is_empty() {
-        println!("未找到匹配的文件或目录");
+        println!("未找到匹配的目录");
     } else {
         for item in &all_matched_items {
-            let type_label = match item.item_type {
-                ItemType::Directory => "[目录]",
-                ItemType::File => "[文件]",
-            };
-
-            println!("  {} {}", type_label, item.path.display());
-            println!("         大小: {}", ByteSize(item.size));
+            println!("  {}", item.path.display());
+            println!("    大小: {}", ByteSize(item.size));
             let datetime: DateTime<Local> = item.modified_time.into();
-            println!(
-                "         修改时间: {}",
-                datetime.format("%Y-%m-%d %H:%M:%S")
-            );
+            println!("    修改时间: {}", datetime.format("%Y-%m-%d %H:%M:%S"));
             println!();
         }
     }
@@ -320,37 +309,20 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     // 统计结果
     println!("{} 统计结果 {}", "=".repeat(20), "=".repeat(20));
 
-    let dir_count = all_matched_items
-        .iter()
-        .filter(|item| item.item_type == ItemType::Directory)
-        .count();
-
-    let file_count = all_matched_items
-        .iter()
-        .filter(|item| item.item_type == ItemType::File)
-        .count();
-
     let total_size: u64 = all_matched_items.iter().map(|item| item.size).sum();
-    let total_count = dir_count + file_count;
+    let total_count = all_matched_items.len();
 
-    println!("匹配的目录: {} 个", dir_count);
-    println!("匹配的文件: {} 个", file_count);
-    println!("总计: {} 项", total_count);
+    println!("匹配的目录: {} 个", total_count);
     println!("总大小: {}", ByteSize(total_size));
 
-    // 只处理目录项,提取用于交互式选择
-    let directory_items: Vec<&MatchedItem> = all_matched_items
-        .iter()
-        .filter(|item| item.item_type == ItemType::Directory)
-        .collect();
-
-    if directory_items.is_empty() {
+    // 提供所有匹配目录供交互式选择
+    if all_matched_items.is_empty() {
         println!("\n没有匹配的目录可供删除");
         return Ok(());
     }
 
-    // 构建选项列表 - 直接使用完整路径
-    let options: Vec<String> = directory_items
+    // 构建选项列表 - 纯路径字符串
+    let options: Vec<String> = all_matched_items
         .iter()
         .map(|item| item.path.display().to_string())
         .collect();
@@ -366,20 +338,17 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     };
 
     if selected.is_empty() {
-        println!("未选择任何目录,操作已取消");
+        println!("未选择任何项,操作已取消");
         return Ok(());
     }
 
-    // 提取被选中的目录路径 - 直接从字符串转换为 PathBuf
-    let selected_paths: Vec<PathBuf> = selected
-        .iter()
-        .map(|path_str| PathBuf::from(path_str))
-        .collect();
+    // 将选中的路径字符串转换为 PathBuf
+    let selected_paths: Vec<PathBuf> = selected.iter().map(|s| PathBuf::from(s)).collect();
 
     // 确认删除
     println!("\n即将删除以下 {} 个目录:", selected_paths.len());
     for path in &selected_paths {
-        println!("  - {}", path.display());
+        println!("  {}", path.display());
     }
     println!();
 
@@ -387,8 +356,10 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     let mut success_count = 0;
     let mut fail_count = 0;
 
-    for path in &selected_paths {
-        match fs::remove_dir_all(path) {
+    for path in selected_paths {
+        let result = fs::remove_dir_all(&path);
+
+        match result {
             Ok(_) => {
                 println!("✓ 成功删除: {}", path.display());
                 success_count += 1;
