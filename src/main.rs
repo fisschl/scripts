@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use scripts::commands::{compress_delete, file_copy_rename, find_unused_files};
+use scripts::commands::{compress_delete, file_copy_rename, find_unused_files, residue_search};
 
 /// 主命令结构体
 ///
@@ -33,6 +33,8 @@ enum Commands {
     FileCopyRename(file_copy_rename::FileCopyRenameArgs),
     /// 查找目录中未被使用的文件
     FindUnusedFiles(find_unused_files::FindUnusedFilesArgs),
+    /// 查找软件卸载残留
+    ResidueSearch(residue_search::ResidueSearchArgs),
 }
 
 /// 主函数
@@ -46,5 +48,6 @@ async fn main() -> Result<()> {
         Commands::CompressDelete(args) => compress_delete::run(args).await,
         Commands::FileCopyRename(args) => file_copy_rename::run(args).await,
         Commands::FindUnusedFiles(args) => find_unused_files::run(args).await,
+        Commands::ResidueSearch(args) => residue_search::run(args).await,
     }
 }
