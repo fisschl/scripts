@@ -16,7 +16,6 @@ use anyhow::Result;
 use bytesize::ByteSize;
 use chrono::{DateTime, Local};
 use clap::Args;
-use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -64,8 +63,6 @@ pub struct MatchedItem {
     pub size: u64,
     /// 最后修改时间
     pub modified_time: SystemTime,
-    /// 所属的扫描根目录
-    pub scan_root: PathBuf,
 }
 
 /// 构建扫描路径列表
@@ -150,7 +147,7 @@ fn build_scan_roots() -> Result<Vec<PathBuf>> {
 
 /// 扫描目录查找匹配项
 ///
-/// 使用栈模拟深度优先搜索,向下最多扫描 3 层,查找匹配软件名的目录和文件。
+/// 使用递归深度优先搜索,向下最多扫描指定层数,查找匹配软件名的目录和文件。
 ///
 /// # 参数
 ///
@@ -160,24 +157,25 @@ fn build_scan_roots() -> Result<Vec<PathBuf>> {
 ///
 /// # 返回值
 ///
-/// 返回匹配项路径列表(不包含大小和修改时间信息)
+/// 返回匹配项列表,每个匹配项包含路径、类型、大小和修改时间。
 fn scan_directory(
     root: &Path,
     software_name_lower: &str,
-    _max_depth: usize,
-) -> Result<Vec<(PathBuf, ItemType)>> {
-    let mut matched_items = Vec::new();
-
-    // 使用栈模拟 DFS: (路径, 深度)
-    let mut stack: Vec<(PathBuf, usize)> = vec![(root.to_path_buf(), 0)];
-
-    while let Some((current_path, depth)) = stack.pop() {
+    max_depth: usize,
+) -> Result<Vec<MatchedItem>> {
+    fn scan_recursive(
+        current_path: &Path,
+        depth: usize,
+        max_depth: usize,
+        software_name_lower: &str,
+        matched_items: &mut Vec<MatchedItem>,
+    ) {
         // 读取当前目录的所有子项
-        let entries = match fs::read_dir(&current_path) {
+        let entries = match fs::read_dir(current_path) {
             Ok(entries) => entries,
             Err(_) => {
                 // 权限不足或其他错误时跳过
-                continue;
+                return;
             }
         };
 
@@ -208,18 +206,48 @@ fn scan_directory(
                 ItemType::File
             };
 
+            let is_match = file_name.contains(software_name_lower);
+
             // 检查是否匹配软件名
-            if file_name.contains(software_name_lower) {
-                matched_items.push((entry_path.clone(), item_type));
+            if is_match {
+                // 获取修改时间,失败则跳过该项
+                let modified_time = match metadata.modified() {
+                    Ok(time) => time,
+                    Err(_) => continue,
+                };
+
+                // 计算大小: 文件直接使用 metadata.len(), 目录使用 calculate_dir_size
+                let size = if metadata.is_file() {
+                    metadata.len()
+                } else {
+                    calculate_dir_size(&entry_path)
+                };
+
+                matched_items.push(MatchedItem {
+                    path: entry_path.clone(),
+                    item_type,
+                    size,
+                    modified_time,
+                });
             }
 
-            // 如果是目录且深度未达到最大值,压入栈继续遍历
-            // 深度 0, 1, 2 可以继续向下(对应第 1, 2, 3 层)
-            if is_dir && depth < 3 {
-                stack.push((entry_path, depth + 1));
+            // 如果是目录且深度未达到最大值,且当前目录未匹配,递归继续遍历
+            if is_dir && depth < max_depth && !is_match {
+                scan_recursive(
+                    &entry_path,
+                    depth + 1,
+                    max_depth,
+                    software_name_lower,
+                    matched_items,
+                );
             }
         }
     }
+
+    let mut matched_items = Vec::new();
+
+    // 从根目录开始,深度为 0
+    scan_recursive(root, 0, max_depth, software_name_lower, &mut matched_items);
 
     Ok(matched_items)
 }
@@ -256,42 +284,12 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     println!("正在扫描,请稍候...");
     println!();
 
-    // 扫描所有根目录
+    // 扫描所有根目录, 结果依次累加
     let mut all_matched_items: Vec<MatchedItem> = Vec::new();
 
     for root in &scan_roots {
-        let matches = scan_directory(root, &software_name_lower, 3)?;
-
-        for (path, item_type) in matches {
-            // 获取修改时间
-            let modified_time = match fs::metadata(&path) {
-                Ok(metadata) => match metadata.modified() {
-                    Ok(time) => time,
-                    Err(_) => continue,
-                },
-                Err(_) => continue,
-            };
-
-            // 计算大小
-            let size = calculate_dir_size(&path);
-
-            all_matched_items.push(MatchedItem {
-                path,
-                item_type,
-                size,
-                modified_time,
-                scan_root: root.clone(),
-            });
-        }
-    }
-
-    // 按扫描根目录分组
-    let mut grouped_items: HashMap<PathBuf, Vec<&MatchedItem>> = HashMap::new();
-    for item in &all_matched_items {
-        grouped_items
-            .entry(item.scan_root.clone())
-            .or_insert_with(Vec::new)
-            .push(item);
+        let mut matches = scan_directory(root, &software_name_lower, 3)?;
+        all_matched_items.append(&mut matches);
     }
 
     // 输出匹配结果
@@ -301,33 +299,24 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     if all_matched_items.is_empty() {
         println!("未找到匹配的文件或目录");
     } else {
-        // 按扫描根目录顺序输出
-        for root in &scan_roots {
-            if let Some(items) = grouped_items.get(root) {
-                if !items.is_empty() {
-                    println!("[{}]", root.display());
+        for item in &all_matched_items {
+            let type_label = match item.item_type {
+                ItemType::Directory => "[目录]",
+                ItemType::File => "[文件]",
+            };
 
-                    for item in items {
-                        let type_label = match item.item_type {
-                            ItemType::Directory => "[目录]",
-                            ItemType::File => "[文件]",
-                        };
-
-                        println!("  {} {}", type_label, item.path.display());
-                        println!("         大小: {}", ByteSize(item.size));
-                        let datetime: DateTime<Local> = item.modified_time.into();
-                        println!(
-                            "         修改时间: {}",
-                            datetime.format("%Y-%m-%d %H:%M:%S")
-                        );
-                        println!();
-                    }
-                }
-            }
+            println!("  {} {}", type_label, item.path.display());
+            println!("         大小: {}", ByteSize(item.size));
+            let datetime: DateTime<Local> = item.modified_time.into();
+            println!(
+                "         修改时间: {}",
+                datetime.format("%Y-%m-%d %H:%M:%S")
+            );
+            println!();
         }
     }
 
-    // 统计信息
+    // 统计结果
     println!("{} 统计结果 {}", "=".repeat(20), "=".repeat(20));
 
     let dir_count = all_matched_items
@@ -341,10 +330,11 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
         .count();
 
     let total_size: u64 = all_matched_items.iter().map(|item| item.size).sum();
+    let total_count = dir_count + file_count;
 
     println!("匹配的目录: {} 个", dir_count);
     println!("匹配的文件: {} 个", file_count);
-    println!("总计: {} 项", all_matched_items.len());
+    println!("总计: {} 项", total_count);
     println!("总大小: {}", ByteSize(total_size));
 
     Ok(())
