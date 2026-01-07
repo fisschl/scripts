@@ -16,6 +16,7 @@ use anyhow::Result;
 use bytesize::ByteSize;
 use chrono::{DateTime, Local};
 use clap::Args;
+use inquire::MultiSelect;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -336,6 +337,74 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     println!("匹配的文件: {} 个", file_count);
     println!("总计: {} 项", total_count);
     println!("总大小: {}", ByteSize(total_size));
+
+    // 只处理目录项,提取用于交互式选择
+    let directory_items: Vec<&MatchedItem> = all_matched_items
+        .iter()
+        .filter(|item| item.item_type == ItemType::Directory)
+        .collect();
+
+    if directory_items.is_empty() {
+        println!("\n没有匹配的目录可供删除");
+        return Ok(());
+    }
+
+    // 构建选项列表 - 直接使用完整路径
+    let options: Vec<String> = directory_items
+        .iter()
+        .map(|item| item.path.display().to_string())
+        .collect();
+
+    // 使用 MultiSelect 让用户选择要删除的目录
+    println!();
+    let selected = match MultiSelect::new("请选择要删除的目录", options).prompt() {
+        Ok(selected) => selected,
+        Err(_) => {
+            println!("操作已取消");
+            return Ok(());
+        }
+    };
+
+    if selected.is_empty() {
+        println!("未选择任何目录,操作已取消");
+        return Ok(());
+    }
+
+    // 提取被选中的目录路径 - 直接从字符串转换为 PathBuf
+    let selected_paths: Vec<PathBuf> = selected
+        .iter()
+        .map(|path_str| PathBuf::from(path_str))
+        .collect();
+
+    // 确认删除
+    println!("\n即将删除以下 {} 个目录:", selected_paths.len());
+    for path in &selected_paths {
+        println!("  - {}", path.display());
+    }
+    println!();
+
+    // 执行删除
+    let mut success_count = 0;
+    let mut fail_count = 0;
+
+    for path in &selected_paths {
+        match fs::remove_dir_all(path) {
+            Ok(_) => {
+                println!("✓ 成功删除: {}", path.display());
+                success_count += 1;
+            }
+            Err(e) => {
+                println!("✗ 删除失败: {} - {}", path.display(), e);
+                fail_count += 1;
+            }
+        }
+    }
+
+    println!();
+    println!(
+        "删除完成: 成功 {} 个, 失败 {} 个",
+        success_count, fail_count
+    );
 
     Ok(())
 }
