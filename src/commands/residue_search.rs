@@ -146,21 +146,23 @@ fn build_scan_roots() -> Result<Vec<PathBuf>> {
 /// * `root` - 扫描根目录
 /// * `software_name_lower` - 软件名的小写形式(用于匹配)
 /// * `max_depth` - 最大递归深度(从根目录开始计数,根目录为第0层)
+/// * `global_matched_map` - 全局匹配项哈希表,用于去重
 ///
 /// # 返回值
 ///
-/// 返回匹配的目录列表,每个匹配项包含路径、大小和修改时间。
+/// 无返回值,匹配项直接插入到 global_matched_map 中。
 fn scan_directory(
     root: &Path,
     software_name_lower: &str,
     max_depth: usize,
-) -> Result<Vec<MatchedItem>> {
+    matched: &mut HashMap<PathBuf, MatchedItem>,
+) -> Result<()> {
     fn scan_recursive(
         current_path: &Path,
         depth: usize,
         max_depth: usize,
         software_name_lower: &str,
-        matched_items: &mut Vec<MatchedItem>,
+        matched: &mut HashMap<PathBuf, MatchedItem>,
     ) {
         // 读取当前目录的所有子项
         let entries = match fs::read_dir(current_path) {
@@ -198,6 +200,11 @@ fn scan_directory(
 
             // 检查目录名是否匹配软件名
             if file_name.contains(software_name_lower) {
+                // 检查是否已存在于全局哈希表中
+                if matched.contains_key(&entry_path) {
+                    continue;
+                }
+
                 // 获取修改时间,失败则跳过该项
                 let modified_time = match metadata.modified() {
                     Ok(time) => time,
@@ -207,11 +214,14 @@ fn scan_directory(
                 // 计算目录大小
                 let size = calculate_dir_size(&entry_path);
 
-                matched_items.push(MatchedItem {
-                    path: entry_path.clone(),
-                    size,
-                    modified_time,
-                });
+                matched.insert(
+                    entry_path.clone(),
+                    MatchedItem {
+                        path: entry_path,
+                        size,
+                        modified_time,
+                    },
+                );
 
                 continue;
             }
@@ -227,17 +237,15 @@ fn scan_directory(
                 depth + 1,
                 max_depth,
                 software_name_lower,
-                matched_items,
+                matched,
             );
         }
     }
 
-    let mut matched_items = Vec::new();
-
     // 从根目录开始,深度为 0
-    scan_recursive(root, 0, max_depth, software_name_lower, &mut matched_items);
+    scan_recursive(root, 0, max_depth, software_name_lower, matched);
 
-    Ok(matched_items)
+    Ok(())
 }
 
 /// 命令执行函数
@@ -273,18 +281,14 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     println!();
 
     // 扫描所有根目录, 使用 HashMap 全局去重
-    let mut global_matched_map: HashMap<PathBuf, MatchedItem> = HashMap::new();
+    let mut matched: HashMap<PathBuf, MatchedItem> = HashMap::new();
 
     for root in &scan_roots {
-        let matches = scan_directory(root, &software_name_lower, 3)?;
-        // 合并到全局 HashMap,自动去重
-        for item in matches {
-            global_matched_map.insert(item.path.clone(), item);
-        }
+        scan_directory(root, &software_name_lower, 3, &mut matched)?;
     }
 
     // 转换为 Vec
-    let all_matched_items: Vec<MatchedItem> = global_matched_map.into_values().collect();
+    let all_matched_items: Vec<MatchedItem> = matched.into_values().collect();
 
     // 输出匹配结果
     println!("{} 匹配结果 {}", "=".repeat(20), "=".repeat(20));
