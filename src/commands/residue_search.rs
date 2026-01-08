@@ -44,6 +44,17 @@ pub struct ResidueSearchArgs {
         long_help = "要查找的软件名称。支持子串匹配,大小写不敏感。例如输入 \"chrome\" 可以匹配 \"Google Chrome\", \"ChromeSetup.exe\" 等。"
     )]
     pub software_name: String,
+    /// 启用交互式删除功能
+    ///
+    /// 开启后,扫描结束时会询问是否删除每个匹配的目录。
+    #[arg(
+        short = 'i',
+        long = "interactive",
+        default_value = "false",
+        help = "启用交互式删除功能",
+        long_help = "启用交互式删除功能。开启后,扫描结束时会询问是否删除每个匹配的目录。"
+    )]
+    pub interactive: bool,
 }
 
 /// 匹配项结构
@@ -304,6 +315,11 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
 
     println!("匹配的目录: {} 个", total_count);
     println!("总大小: {}", ByteSize(total_size));
+
+    // 如果未启用交互式删除功能,提前返回
+    if !args.interactive {
+        return Ok(());
+    }
 
     // 提供所有匹配目录供交互式选择
     if all_matched_items.is_empty() {
