@@ -12,7 +12,7 @@
 //! - 输出完整路径、大小和修改时间
 //! - 权限不足时自动跳过
 
-use crate::utils::filesystem::calculate_dir_size;
+use crate::utils::filesystem::{calculate_dir_size, remove_path};
 use anyhow::Result;
 use bytesize::ByteSize;
 use chrono::{DateTime, Local};
@@ -363,7 +363,7 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     let mut fail_count = 0;
 
     for path in selected_paths {
-        let result = fs::remove_dir_all(&path);
+        let result = remove_path(&path).await;
 
         match result {
             Ok(_) => {

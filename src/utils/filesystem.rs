@@ -135,63 +135,6 @@ pub fn get_file_extension<P: AsRef<Path>>(path: P) -> String {
         .unwrap_or_default()
 }
 
-/// 列举本地目录下所有文件（返回相对路径）
-///
-/// 递归遍历指定目录，返回所有文件的相对路径列表。
-/// 路径分隔符统一使用正斜杠 `/`，便于跨平台使用。
-///
-/// # 参数
-///
-/// * `dir` - 要扫描的目录路径
-///
-/// # 返回值
-///
-/// * `Ok(Vec<String>)` - 所有文件的相对路径列表
-/// * `Err(anyhow::Error)` - 目录读取失败
-///
-/// # 示例
-///
-/// ```rust
-/// use scripts::utils::filesystem::list_local_files;
-/// use std::path::Path;
-///
-/// fn main() -> anyhow::Result<()> {
-///     let dir = Path::new("./src");
-///     let files = list_local_files(dir)?;
-///     for file in files {
-///         println!("{}", file);
-///     }
-///     Ok(())
-/// }
-/// ```
-pub fn list_local_files<P: AsRef<Path>>(dir: P) -> Result<Vec<String>> {
-    let dir = dir.as_ref();
-    let mut files = Vec::new();
-    list_local_files_recursive(dir, dir, &mut files)?;
-    Ok(files)
-}
-
-/// 递归遍历目录，收集所有文件的相对路径
-fn list_local_files_recursive(base: &Path, current: &Path, files: &mut Vec<String>) -> Result<()> {
-    for entry in std::fs::read_dir(current)
-        .with_context(|| format!("无法读取目录: {}", current.display()))?
-    {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_file() {
-            let rel_path = path
-                .strip_prefix(base)
-                .with_context(|| "无法获取相对路径")?
-                .to_string_lossy()
-                .replace('\\', "/");
-            files.push(rel_path);
-        } else if path.is_dir() {
-            list_local_files_recursive(base, &path, files)?;
-        }
-    }
-    Ok(())
-}
-
 /// 计算目录的实际大小（字节数）
 ///
 /// 使用栈模拟 DFS 遍历目录，累加所有文件的大小。
