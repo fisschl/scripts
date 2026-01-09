@@ -55,7 +55,7 @@ pub struct FindUnusedFilesArgs {
     #[arg(
         short = 'r',
         long = "resource-extensions",
-        default_value = "png,jpg,jpeg,svg,gif,webp",
+        default_value = "png,jpg,jpeg,svg,gif,webp,ttf,otf,woff,woff2",
         value_name = "EXTENSIONS",
         help = "资源文件扩展名列表",
         long_help = "要检查的资源文件扩展名，逗号分隔，不带点，大小写不敏感。例如：png,jpg,svg"
