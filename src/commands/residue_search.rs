@@ -20,9 +20,9 @@ use clap::Args;
 use inquire::MultiSelect;
 use std::collections::HashMap;
 use std::env;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use walkdir::WalkDir;
 
 /// 命令行参数结构体
 #[derive(Args, Debug)]
@@ -150,100 +150,64 @@ fn build_scan_roots() -> Result<Vec<PathBuf>> {
 
 /// 扫描目录查找匹配项
 ///
-/// 使用递归深度优先搜索,向下最多扫描指定层数,查找匹配软件名的目录。
+/// 使用 WalkDir 递归遍历,向下最多扫描 3 层,查找匹配软件名的目录。
 ///
 /// # 参数
 ///
 /// * `root` - 扫描根目录
 /// * `software_name_lower` - 软件名的小写形式(用于匹配)
-/// * `max_depth` - 最大递归深度(从根目录开始计数,根目录为第0层)
-/// * `global_matched_map` - 全局匹配项哈希表,用于去重
+/// * `matched` - 全局匹配项哈希表,用于去重
 ///
 /// # 返回值
 ///
-/// 无返回值,匹配项直接插入到 global_matched_map 中。
+/// 无返回值,匹配项直接插入到 matched 中。
 fn scan_directory(
     root: &Path,
-    depth: usize,
-    max_depth: usize,
     software_name_lower: &str,
     matched: &mut HashMap<PathBuf, MatchedItem>,
 ) -> Result<()> {
-    // 读取当前目录的所有子项
-    let entries = match fs::read_dir(root) {
-        Ok(entries) => entries,
-        Err(_) => {
-            // 权限不足或其他错误时跳过
-            return Ok(());
-        }
-    };
-
-    for entry in entries {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-
+    for entry in WalkDir::new(root)
+        .max_depth(3)
+        .min_depth(1)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_dir())
+    {
         let entry_path = entry.path();
 
-        // 提取文件名
         let file_name = match entry_path.file_name() {
             Some(name) => name.to_string_lossy().to_lowercase(),
             None => continue,
         };
 
-        // 判断是否为目录
+        if !file_name.contains(software_name_lower) {
+            continue;
+        }
+
+        if matched.contains_key(entry_path) {
+            continue;
+        }
+
         let metadata = match entry.metadata() {
             Ok(m) => m,
             Err(_) => continue,
         };
 
-        // 如果是文件,直接跳过
-        if !metadata.is_dir() {
-            continue;
-        }
+        let modified_time = match metadata.modified() {
+            Ok(time) => time,
+            Err(_) => continue,
+        };
 
-        // 检查目录名是否匹配软件名
-        if file_name.contains(software_name_lower) {
-            // 检查是否已存在于全局哈希表中
-            if matched.contains_key(&entry_path) {
-                continue;
-            }
+        let size = calculate_dir_size(entry_path);
 
-            // 获取修改时间,失败则跳过该项
-            let modified_time = match metadata.modified() {
-                Ok(time) => time,
-                Err(_) => continue,
-            };
-
-            // 计算目录大小
-            let size = calculate_dir_size(&entry_path);
-
-            matched.insert(
-                entry_path.clone(),
-                MatchedItem {
-                    path: entry_path,
-                    size,
-                    modified_time,
-                },
-            );
-
-            continue;
-        }
-
-        // 如果深度已达到最大值,停止递归
-        if depth >= max_depth {
-            continue;
-        }
-
-        // 目录未匹配,继续递归遍历
-        scan_directory(
-            &entry_path,
-            depth + 1,
-            max_depth,
-            software_name_lower,
-            matched,
-        )?;
+        matched.insert(
+            entry_path.to_path_buf(),
+            MatchedItem {
+                path: entry_path.to_path_buf(),
+                size,
+                modified_time,
+            },
+        );
     }
 
     Ok(())
@@ -285,7 +249,7 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     let mut matched: HashMap<PathBuf, MatchedItem> = HashMap::new();
 
     for root in &scan_roots {
-        scan_directory(root, 0, 3, &software_name_lower, &mut matched)?;
+        scan_directory(root, &software_name_lower, &mut matched)?;
     }
 
     // 转换为 Vec

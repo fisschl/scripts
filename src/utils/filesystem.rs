@@ -5,6 +5,7 @@
 use anyhow::{Context, Result};
 use std::path::Path;
 use tokio::fs;
+use walkdir::WalkDir;
 
 /// 删除文件或目录
 ///
@@ -137,7 +138,7 @@ pub fn get_file_extension<P: AsRef<Path>>(path: P) -> String {
 
 /// 计算目录的实际大小（字节数）
 ///
-/// 使用栈模拟 DFS 遍历目录，累加所有文件的大小。
+/// 使用 WalkDir 遍历目录，累加所有文件的大小。
 /// 权限不足时自动跳过，不会抛出异常。
 ///
 /// # 参数
@@ -158,56 +159,10 @@ pub fn get_file_extension<P: AsRef<Path>>(path: P) -> String {
 /// println!("目录大小: {} 字节", size);
 /// ```
 pub fn calculate_dir_size<P: AsRef<Path>>(path: P) -> u64 {
-    let path = path.as_ref();
-
-    // 检查路径是否存在
-    let metadata = match std::fs::metadata(path) {
-        Ok(m) => m,
-        Err(_) => return 0,
-    };
-
-    // 如果是文件，直接返回文件大小
-    if metadata.is_file() {
-        return metadata.len();
-    }
-
-    // 如果不是目录，返回 0
-    if !metadata.is_dir() {
-        return 0;
-    }
-
-    let mut total_size = 0u64;
-
-    // 使用栈模拟 DFS 遍历目录
-    let mut stack = vec![path.to_path_buf()];
-
-    while let Some(current_path) = stack.pop() {
-        // 读取当前目录的所有子项
-        let entries = match std::fs::read_dir(&current_path) {
-            Ok(entries) => entries,
-            Err(_) => continue, // 权限不足或其他错误时跳过
-        };
-
-        for entry in entries {
-            let entry = match entry {
-                Ok(e) => e,
-                Err(_) => continue,
-            };
-
-            let entry_path = entry.path();
-
-            let entry_metadata = match entry.metadata() {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
-
-            if entry_metadata.is_file() {
-                total_size += entry_metadata.len();
-            } else if entry_metadata.is_dir() {
-                stack.push(entry_path);
-            }
-        }
-    }
-
-    total_size
+    WalkDir::new(path.as_ref())
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .map(|e| e.metadata().map(|m| m.len()).unwrap_or(0))
+        .sum()
 }
