@@ -30,9 +30,6 @@ pub fn find_7z_executable() -> &'static Path {
 
 /// 实际执行 7-Zip 查找的内部函数
 fn find_7z_executable_inner() -> PathBuf {
-    if which::which("7z").is_ok() {
-        return PathBuf::from("7z");
-    }
     let home_dir = dirs::home_dir().unwrap();
     let common_paths = [
         PathBuf::from("C:\\Program Files\\7-Zip\\7z.exe"),
