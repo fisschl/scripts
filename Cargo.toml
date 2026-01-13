@@ -21,6 +21,7 @@ dirs = "6.0"
 tokio = { version = "1.48", features = ["full"] }
 walkdir = "2.5"
 ignore = "0.4"
+cached = "0.54"
 regex = "1.12"
 grep-searcher = "0.1"
 grep-regex = "0.1"
