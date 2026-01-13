@@ -61,11 +61,15 @@ pub async fn compress_7z(item_path: &Path, output_path: &Path, password: Option<
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
-        .unwrap_or_else(|e| panic!("执行 7z 命令失败: {}", e));
+        .unwrap_or_else(|e| panic!("执行 7z 命令失败: args={:?}, error={}", args, e));
 
     let status = child.wait().await.expect("等待 7z 命令完成失败");
 
     if !status.success() {
-        panic!("7z 压缩失败，退出码: {}", status.code().unwrap_or(-1));
+        panic!(
+            "7z 压缩失败: args={:?}, 退出码: {}",
+            args,
+            status.code().unwrap_or(-1)
+        );
     }
 }
