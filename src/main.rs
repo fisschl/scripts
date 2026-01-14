@@ -4,7 +4,9 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use scripts::commands::{compress_delete, file_copy_rename, find_unused_files, residue_search};
+
+mod commands;
+mod utils;
 
 /// 主命令结构体
 ///
@@ -28,13 +30,13 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// 使用 7-Zip 压缩文件和目录,然后删除原始项目
-    CompressDelete(compress_delete::CompressDeleteArgs),
+    CompressDelete(commands::compress_delete::CompressDeleteArgs),
     /// 将文件从源目录复制到目标目录，使用哈希值重命名
-    FileCopyRename(file_copy_rename::FileCopyRenameArgs),
+    FileCopyRename(commands::file_copy_rename::FileCopyRenameArgs),
     /// 查找目录中未被使用的文件
-    FindUnusedFiles(find_unused_files::FindUnusedFilesArgs),
+    FindUnusedFiles(commands::find_unused_files::FindUnusedFilesArgs),
     /// 查找软件卸载残留
-    ResidueSearch(residue_search::ResidueSearchArgs),
+    ResidueSearch(commands::residue_search::ResidueSearchArgs),
 }
 
 /// 主函数
@@ -45,9 +47,9 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::CompressDelete(args) => compress_delete::run(args).await,
-        Commands::FileCopyRename(args) => file_copy_rename::run(args).await,
-        Commands::FindUnusedFiles(args) => find_unused_files::run(args).await,
-        Commands::ResidueSearch(args) => residue_search::run(args).await,
+        Commands::CompressDelete(args) => commands::compress_delete::run(args).await,
+        Commands::FileCopyRename(args) => commands::file_copy_rename::run(args).await,
+        Commands::FindUnusedFiles(args) => commands::find_unused_files::run(args).await,
+        Commands::ResidueSearch(args) => commands::residue_search::run(args).await,
     }
 }
