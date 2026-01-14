@@ -3,7 +3,7 @@
 //! 一个简洁高效的 Rust 命令行工具，用于将源目录中的文件复制到目标目录，
 //! 并使用 Blake3 哈希值重命名以避免重复。
 
-use crate::utils::filesystem::{ensure_directory_exists, get_file_extension};
+use crate::utils::filesystem::get_file_extension;
 use crate::utils::hash::calculate_file_hash;
 use anyhow::{Context, Result};
 use clap::Args;
@@ -184,7 +184,11 @@ pub async fn run(args: FileCopyRenameArgs) -> anyhow::Result<()> {
     println!();
 
     // 确保目标目录存在
-    ensure_directory_exists(&args.target).await?;
+    if !args.target.exists() {
+        tokio::fs::create_dir_all(&args.target)
+            .await
+            .with_context(|| format!("创建目录失败: {}", args.target.display()))?;
+    }
 
     // 解析文件扩展名参数（不带点）
     let allowed_extensions: Vec<String> = args
