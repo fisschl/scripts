@@ -220,6 +220,80 @@ scripts residue-search -s "visual studio"
 
 9. **软件残留识别**：请确保匹配的目录确实是软件残留，避免误删除系统文件或其他重要数据
 
+## 通用工具模块 (utils)
+
+项目提供了一组可复用的通用工具函数，位于 `src/utils/` 目录下。
+
+### 1. 文件系统操作 (`src/utils/filesystem.rs`)
+
+#### `remove_path`
+
+删除文件或目录。根据路径类型自动选择删除方法。
+
+```rust
+use scripts::utils::filesystem::remove_path;
+
+remove_path(Path::new("./old_file.txt")).await?;
+```
+
+#### `get_file_extension`
+
+获取文件扩展名（小写），无扩展名时返回空字符串。
+
+```rust
+use scripts::utils::filesystem::get_file_extension;
+
+let ext = get_file_extension(Path::new("document.PDF")); // "pdf"
+```
+
+#### `calculate_dir_size`
+
+计算目录的实际大小（字节数），权限不足时自动跳过。
+
+```rust
+use scripts::utils::filesystem::calculate_dir_size;
+
+let size = calculate_dir_size(Path::new("./src"));
+```
+
+### 2. 哈希计算 (`src/utils/hash.rs`)
+
+#### `calculate_file_hash`
+
+计算文件的 Blake3 哈希值并使用 Base58 编码，适合生成唯一文件名。
+
+```rust
+use scripts::utils::hash::calculate_file_hash;
+
+let hash = calculate_file_hash(Path::new("./video.mp4")).await?;
+```
+
+### 3. 压缩工具 (`src/utils/compress.rs`)
+
+#### `find_7z`
+
+查找系统中安装的 7-Zip 可执行文件，结果会被缓存。
+
+```rust
+use scripts::utils::compress::find_7z;
+
+let path = find_7z(); // PathBuf
+```
+
+#### `compress_7z`
+
+使用 7-Zip 压缩文件或目录为 .7z 格式，支持密码加密。
+
+```rust
+use scripts::utils::compress::compress_7z;
+
+// 无密码压缩
+compress_7z(Path::new("./data"), Path::new("./data.7z"), None).await;
+
+// 带密码压缩
+compress_7z(Path::new("./data"), Path::new("./data.7z"), Some("password")).await;
+```
+
 ## 贡献指南
 
 欢迎提交 Issue 和 Pull Request 来改进这些工具！
