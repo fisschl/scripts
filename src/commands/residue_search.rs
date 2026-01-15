@@ -35,13 +35,13 @@ use walkdir::WalkDir;
 pub struct ResidueSearchArgs {
     /// 要查找的软件名称
     ///
-    /// 支持子串匹配,大小写不敏感。例如输入 "chrome" 可以匹配 "Google Chrome", "ChromeSetup.exe" 等。
+    /// 支持子串匹配,大小写不敏感。例如输入 "chrome" 可以匹配 "Google Chrome", "ChromeSetup" 等。
     #[arg(
         short = 's',
         long = "software",
         value_name = "NAME",
         help = "要查找的软件名称",
-        long_help = "要查找的软件名称。支持子串匹配,大小写不敏感。例如输入 \"chrome\" 可以匹配 \"Google Chrome\", \"ChromeSetup.exe\" 等。"
+        long_help = "要查找的软件名称。支持子串匹配,大小写不敏感。例如输入 \"chrome\" 可以匹配 \"Google Chrome\", \"ChromeSetup\" 等。"
     )]
     pub software_name: String,
     /// 启用交互式删除功能
