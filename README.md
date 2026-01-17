@@ -203,21 +203,13 @@ scripts residue-search -s "visual studio"
 ## 使用提示
 
 1. **⚠️ 备份重要数据**：在运行删除或移动操作前，请确保已备份重要文件
-
 2. **测试运行**：建议先在小批量文件上测试工具功能
-
 3. **权限控制**：确保有足够的文件系统权限执行操作
-
 4. **7-Zip 安装**：compress-delete 命令需要系统安装 7-Zip 并在 PATH 中，或在标准安装位置
-
-5. **不可逆操作警告**：compress-delete 会永久删除源文件，请谨慎操作
-
+5. **安全删除**：工具使用系统回收站机制（trash），删除的文件可恢复，比永久删除更安全。
 6. **find-unused-files 误报风险**：该工具检测结果可能有误报，删除文件前必须人工验证
-
 7. **动态引用检测限制**：通过变量拼接或动态加载的资源路径可能无法被正确识别
-
-8. **residue-search 删除风险**：该工具会永久删除选中的目录，删除前请仔细确认匹配结果
-
+8. **residue-search 风险**：虽然删除操作是移动到回收站，但在执行前仍请仔细确认匹配结果
 9. **软件残留识别**：请确保匹配的目录确实是软件残留，避免误删除系统文件或其他重要数据
 
 ## 通用工具模块 (utils)
@@ -225,16 +217,6 @@ scripts residue-search -s "visual studio"
 项目提供了一组可复用的通用工具函数，位于 `src/utils/` 目录下。
 
 ### 1. 文件系统操作 (`src/utils/filesystem.rs`)
-
-#### `remove_path`
-
-删除文件或目录。根据路径类型自动选择删除方法。
-
-```rust
-use scripts::utils::filesystem::remove_path;
-
-remove_path(Path::new("./old_file.txt")).await?;
-```
 
 #### `get_file_extension`
 

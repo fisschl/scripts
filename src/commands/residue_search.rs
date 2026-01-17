@@ -12,8 +12,8 @@
 //! - 输出完整路径、大小和修改时间
 //! - 权限不足时自动跳过
 
-use crate::utils::filesystem::{calculate_dir_size, remove_path};
-use anyhow::Result;
+use crate::utils::filesystem::calculate_dir_size;
+use anyhow::{Context, Result};
 use bytesize::ByteSize;
 use chrono::{DateTime, Local};
 use clap::Args;
@@ -22,6 +22,7 @@ use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use trash;
 use walkdir::WalkDir;
 
 /// 命令行参数结构体
@@ -327,15 +328,15 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     let mut fail_count = 0;
 
     for path in selected_paths {
-        let result = remove_path(&path).await;
+        let result = trash::delete(&path).context("无法将目录移动到回收站");
 
         match result {
             Ok(_) => {
-                println!("✓ 成功删除: {}", path.display());
+                println!("✓ 已将目录移动到回收站: {}", path.display());
                 success_count += 1;
             }
             Err(e) => {
-                println!("✗ 删除失败: {} - {}", path.display(), e);
+                println!("✗ 移动到回收站失败: {} - {}", path.display(), e);
                 fail_count += 1;
             }
         }

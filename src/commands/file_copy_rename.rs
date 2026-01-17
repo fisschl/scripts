@@ -8,6 +8,7 @@ use crate::utils::hash::calculate_file_hash;
 use anyhow::{Context, Result};
 use clap::Args;
 use std::path::{Path, PathBuf};
+use trash;
 use walkdir::WalkDir;
 
 /// 命令行参数结构体
@@ -140,11 +141,10 @@ pub async fn process_file(
 
     // 如果启用了移动模式，复制成功后删除源文件
     if move_after_copy {
-        tokio::fs::remove_file(file_path)
-            .await
-            .with_context(|| format!("删除源文件失败: {}", file_path.display()))?;
+        trash::delete(file_path)
+            .with_context(|| format!("无法将源文件移动到回收站: {}", file_path.display()))?;
 
-        println!("删除源文件: {}", file_name);
+        println!("已将源文件移动到回收站: {}", file_name);
     }
 
     Ok(())

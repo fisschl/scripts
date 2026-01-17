@@ -14,6 +14,7 @@ use grep_searcher::sinks::UTF8;
 use ignore::WalkBuilder;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use trash;
 use walkdir::WalkDir;
 
 /// 文件使用状态
@@ -412,10 +413,9 @@ pub async fn run(args: FindUnusedFilesArgs) -> Result<()> {
 
         for relative_path in &unused_files {
             let file_path = args.dir.join(relative_path);
-            tokio::fs::remove_file(&file_path)
-                .await
-                .with_context(|| format!("删除文件失败: {}", relative_path))?;
-            println!("✓ 已删除: {}", relative_path);
+            trash::delete(&file_path)
+                .with_context(|| format!("无法将文件移动到回收站: {}", relative_path))?;
+            println!("✓ 已移动到回收站: {}", relative_path);
         }
 
         println!();

@@ -4,10 +4,11 @@
 //! 然后删除原始文件，仅保留压缩后的 7z 文件。
 
 use crate::utils::compress::compress_7z;
-use crate::utils::filesystem::{get_file_extension, remove_path};
+use crate::utils::filesystem::get_file_extension;
 use anyhow::{Context, Result};
 use clap::Args;
 use std::path::{Path, PathBuf};
+use trash;
 
 /// 命令行参数结构体
 ///
@@ -168,8 +169,9 @@ pub async fn process_item(
     }
 
     // 压缩成功后删除原始项目
-    remove_path(item_path).await?;
-    println!("删除原始项目: {}", item_name);
+    trash::delete(item_path)
+        .with_context(|| format!("无法将原始项目移动到回收站: {}", item_path.display()))?;
+    println!("已将原始项目移动到回收站: {}", item_name);
 
     Ok(())
 }
