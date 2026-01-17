@@ -56,8 +56,7 @@ cargo build --release
 **安全特性**：
 
 - 跳过隐藏文件/目录（以点开头）
-- 跳过开发文件（如 .git, node_modules, target 等）
-- 跳过常见压缩格式（.zip, .7z, .tar.gz 等）
+- 跳过常见压缩格式（.zip, .7z, .rar, .tar, .gz 等）
 - 压缩文件已存在时自动跳过
 - 仅在压缩成功后才删除源文件/目录
 
@@ -70,13 +69,17 @@ scripts compress-delete
 # 指定工作目录
 scripts compress-delete --directory ./backup
 
+# 使用密码加密压缩
+scripts compress-delete --directory ./projects --password "your_password"
+
 # 使用短选项
-scripts compress-delete -d ./projects
+scripts compress-delete -d ./projects -p "your_password"
 ```
 
 **参数说明**：
 
 - `[--directory, -d] <DIRECTORY>`: 要处理的目录路径，默认为当前目录
+- `[--password, -p] <PASSWORD>`: 压缩文件密码，启用后会同时加密文件内容和文件名
 
 ### 2. file-copy-rename
 
@@ -114,7 +117,7 @@ scripts file-copy-rename -s ./source -t ./target -e "mp4,webm" -m
 
 - `[--source, -s] <DIRECTORY>`: 源目录路径，默认为 `./source`
 - `[--target, -t] <DIRECTORY>`: 目标目录路径，默认为 `./target`
-- `[--extensions, -e] <EXTENSIONS>`: 文件扩展名（逗号分隔，不带点），默认为 `mp4,avi,mkv,mov,wmv,flv,webm`（常见视频格式）
+- `[--extensions, -e] <EXTENSIONS>`: 文件扩展名（逗号分隔，不带点），默认为 `mp4,webm,m4v,avi,mkv,mov`（常见视频格式）
 - `[--move, -m]`: 启用移动模式（复制后删除源文件）
 
 ### 3. find-unused-files
@@ -148,7 +151,7 @@ scripts find-unused-files --dir ./public --delete
 **参数说明**：
 
 - `[-d, --dir] <DIR>`: 要检查的目录路径
-- `[-r, --resource-extensions] <EXTENSIONS>`: 资源文件扩展名，默认为 `png,jpg,jpeg,svg,gif,webp`
+- `[-r, --resource-extensions] <EXTENSIONS>`: 资源文件扩展名，默认为 `png,jpg,jpeg,svg,gif,webp,ttf,otf,woff,woff2`
 - `[-c, --code-extensions] <EXTENSIONS>`: 代码文件扩展名，默认为 `js,ts,jsx,tsx,vue,html,css,scss,sass,less`
 - `[--delete]`: 自动删除未使用的文件（⚠️ 小心使用）
 
@@ -183,15 +186,22 @@ scripts find-unused-files --dir ./public --delete
 
 ```bash
 # 查找 Chrome 相关残留
- scripts residue-search --software chrome
+scripts residue-search --software chrome
 
 # 使用短选项
 scripts residue-search -s "visual studio"
+
+# 启用交互式删除模式
+scripts residue-search --software chrome --interactive
+
+# 使用短选项启用交互式删除
+scripts residue-search -s chrome -i
 ```
 
 **参数说明**：
 
 - `[--software, -s] <NAME>`: 要查找的软件名称（必填）
+- `[--interactive, -i]`: 启用交互式删除功能，扫描结束后可多选要删除的目录
 
 **⚠️ 注意事项**：
 
