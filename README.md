@@ -31,7 +31,7 @@ cargo install --path .
 cargo run -- compress-delete --directory ./projects
 cargo run -- file-copy-rename --source ./photos --target ./backup --extensions jpg,png,gif
 cargo run -- find-unused-files --dir ./assets --resource-extensions png,jpg --code-extensions js,ts,css
-cargo run -- residue-search --software chrome --interactive
+cargo run -- residue-search --software Thunder --interactive
 ```
 
 ### 从源码构建

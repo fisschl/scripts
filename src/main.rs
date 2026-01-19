@@ -37,6 +37,8 @@ enum Commands {
     FindUnusedFiles(commands::find_unused_files::FindUnusedFilesArgs),
     /// 查找软件卸载残留
     ResidueSearch(commands::residue_search::ResidueSearchArgs),
+    /// 将视频文件转码为 WebM AV1 格式
+    VideoTranscode(commands::video_transcode::VideoTranscodeArgs),
 }
 
 /// 主函数
@@ -51,5 +53,6 @@ async fn main() -> Result<()> {
         Commands::FileCopyRename(args) => commands::file_copy_rename::run(args).await,
         Commands::FindUnusedFiles(args) => commands::find_unused_files::run(args).await,
         Commands::ResidueSearch(args) => commands::residue_search::run(args).await,
+        Commands::VideoTranscode(args) => commands::video_transcode::run(args).await,
     }
 }
