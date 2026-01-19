@@ -41,6 +41,17 @@ pub fn find_7z() -> PathBuf {
 /// `item_path` 可以是文件或目录，`output_path` 为目标 .7z 文件路径。
 /// 如果提供 `password`，会同时加密内容和文件名（`-mhe=on`）。
 ///
+/// # 7z 命令格式
+///
+/// 原始命令: `7z a <archive> <item> [-p<password>] [-mhe=on]`
+///
+/// 参数说明:
+/// - `a`: 添加文件到存档（Add files to archive）
+/// - `<archive>`: 目标压缩包完整路径（必须包含文件名和 `.7z` 扩展名，不能是目录）
+/// - `<item>`: 要压缩的文件或目录路径
+/// - `-p<password>`: 设置密码保护
+/// - `-mhe=on`: 启用归档头加密（加密文件名，需要密码才能查看压缩包内容）
+///
 /// # Panics
 ///
 /// 如果压缩命令执行失败或返回非零退出码，会 panic。
