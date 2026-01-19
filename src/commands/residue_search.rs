@@ -316,37 +316,19 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     // 将选中的路径字符串转换为 PathBuf
     let selected_paths: Vec<PathBuf> = selected.iter().map(|s| PathBuf::from(s)).collect();
 
-    // 确认删除
-    println!("\n即将删除以下 {} 个目录:", selected_paths.len());
-    for path in &selected_paths {
-        println!("  {}", path.display());
-    }
-    println!();
-
     // 执行删除
-    let mut success_count = 0;
-    let mut fail_count = 0;
-
     for path in selected_paths {
         let result = trash::delete(&path).context("无法将目录移动到回收站");
 
         match result {
             Ok(_) => {
                 println!("✓ 已将目录移动到回收站: {}", path.display());
-                success_count += 1;
             }
             Err(e) => {
                 println!("✗ 移动到回收站失败: {} - {}", path.display(), e);
-                fail_count += 1;
             }
         }
     }
-
-    println!();
-    println!(
-        "删除完成: 成功 {} 个, 失败 {} 个",
-        success_count, fail_count
-    );
 
     Ok(())
 }
