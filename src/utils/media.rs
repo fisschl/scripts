@@ -171,20 +171,12 @@ pub async fn transcode_to_webm_av1(
         .arg("128k")
         .arg("-y")
         .arg(output_path)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
 
     let mut child = cmd
         .spawn()
         .with_context(|| format!("启动 ffmpeg 失败: {}", source_path.display()))?;
-
-    let stderr = child.stderr.take().unwrap();
-    let reader = BufReader::new(stderr);
-    let mut lines = reader.lines();
-
-    while let Ok(Some(line)) = lines.next_line().await {
-        println!("{}", line);
-    }
 
     let status: std::process::ExitStatus = child
         .wait()
