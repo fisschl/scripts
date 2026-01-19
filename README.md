@@ -28,10 +28,10 @@ cargo install --path .
 通过 cargo 直接运行（推荐开发时）
 
 ```bash
-cargo run --release -- compress-delete [参数]
-cargo run --release -- file-copy-rename [参数]
-cargo run --release -- find-unused-files [参数]
-cargo run --release -- residue-search [参数]
+cargo run -- compress-delete --directory ./projects
+cargo run -- file-copy-rename --source ./photos --target ./backup --extensions jpg,png,gif
+cargo run -- find-unused-files --dir ./assets --resource-extensions png,jpg --code-extensions js,ts,css
+cargo run -- residue-search --software chrome --interactive
 ```
 
 ### 从源码构建
