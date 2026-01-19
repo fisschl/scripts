@@ -5,3 +5,4 @@
 pub mod compress;
 pub mod filesystem;
 pub mod hash;
+pub mod media;

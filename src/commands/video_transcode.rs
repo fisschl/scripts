@@ -1,10 +1,8 @@
 use crate::utils::filesystem::get_file_extension;
+use crate::utils::media::{detect_available_encoder, transcode_to_webm_av1};
 use anyhow::{Context, Result};
 use clap::Args;
 use std::path::{Path, PathBuf};
-use std::process::{Command as StdCommand, Stdio};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 
 #[derive(Args, Debug)]
 #[command(name = "video_transcode")]
@@ -23,45 +21,6 @@ pub struct VideoTranscodeArgs {
         long_help = "指定要扫描的源目录，工具会扫描该目录及其子目录（最多三层）中的视频文件。"
     )]
     pub source: PathBuf,
-}
-
-fn test_encoder(encoder: &str) -> bool {
-    let result = StdCommand::new("ffmpeg")
-        .arg("-f")
-        .arg("lavfi")
-        .arg("-i")
-        .arg("testsrc=duration=1:size=320x240")
-        .arg("-c:v")
-        .arg(encoder)
-        .arg("-f")
-        .arg("null")
-        .arg("-y")
-        .arg("-")
-        .output();
-
-    match result {
-        Ok(output) => output.status.success(),
-        Err(_) => false,
-    }
-}
-
-fn detect_available_encoder() -> Result<String> {
-    let priority_encoders = vec![
-        ("av1_nvenc", "NVIDIA GPU (NVENC)"),
-        ("av1_qsv", "Intel GPU (Quick Sync Video)"),
-        ("av1_amf", "AMD GPU (AMF)"),
-        ("svt-av1", "SVT-AV1 (Multi-thread)"),
-        ("libsvtav1", "SVT-AV1 (libsvtav1)"),
-    ];
-
-    for (encoder, desc) in priority_encoders {
-        if test_encoder(encoder) {
-            println!("检测到可用编码器: {} ({})", encoder, desc);
-            return Ok(encoder.to_string());
-        }
-    }
-
-    anyhow::bail!("未找到可用的 AV1 编码器，请检查硬件驱动或安装支持 AV1 的 ffmpeg")
 }
 
 fn collect_video_files(source_dir: &Path, max_depth: usize) -> Vec<PathBuf> {
@@ -92,66 +51,14 @@ fn collect_video_files(source_dir: &Path, max_depth: usize) -> Vec<PathBuf> {
 }
 
 async fn transcode_video(source_path: &Path, encoder: &str) -> Result<()> {
-    if !source_path.is_file() {
-        anyhow::bail!("源文件不存在: {}", source_path.display());
-    }
-
     let ext = get_file_extension(source_path);
     if ext == "webm" {
         println!("跳过 WebM 文件: {}", source_path.display());
         return Ok(());
     }
 
-    let file_name = match source_path.file_name().and_then(|n| n.to_str()) {
-        Some(name) => name,
-        None => anyhow::bail!("无效的文件名: {}", source_path.display()),
-    };
-
     let output_path = source_path.with_extension("webm");
-
-    println!("处理: {}", file_name);
-
-    let mut cmd = Command::new("ffmpeg");
-    cmd.arg("-i")
-        .arg(source_path)
-        .arg("-threads")
-        .arg("0")
-        .arg("-c:v")
-        .arg(encoder)
-        .arg("-crf")
-        .arg("25")
-        .arg("-c:a")
-        .arg("libopus")
-        .arg("-b:a")
-        .arg("128k")
-        .arg("-y")
-        .arg(&output_path)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut child = cmd
-        .spawn()
-        .with_context(|| format!("启动 ffmpeg 失败: {}", source_path.display()))?;
-
-    let stderr = child.stderr.take().unwrap();
-    let reader = BufReader::new(stderr);
-    let mut lines = reader.lines();
-
-    while let Ok(Some(line)) = lines.next_line().await {
-        println!("{}", line);
-    }
-
-    let status: std::process::ExitStatus = child
-        .wait()
-        .await
-        .with_context(|| format!("等待 ffmpeg 完成 失败: {}", source_path.display()))?;
-
-    if !status.success() {
-        anyhow::bail!("ffmpeg 转码失败: {}", source_path.display());
-    }
-
-    println!("转码完成: {}", output_path.display());
-    Ok(())
+    transcode_to_webm_av1(source_path, &output_path, encoder).await
 }
 
 pub async fn run(args: VideoTranscodeArgs) -> Result<()> {
@@ -164,7 +71,7 @@ pub async fn run(args: VideoTranscodeArgs) -> Result<()> {
         anyhow::bail!("源路径必须是目录: {}", source_dir.display());
     }
 
-    let encoder = detect_available_encoder()?;
+    let encoder = detect_available_encoder().map_err(|e| anyhow::anyhow!("{}", e))?;
 
     println!("{} 视频转码工具 {}", "=".repeat(15), "=".repeat(15));
     println!("源目录: {}", source_dir.display());
