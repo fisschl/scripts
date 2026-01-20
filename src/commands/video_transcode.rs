@@ -1,15 +1,26 @@
 use crate::utils::filesystem::get_file_extension;
-use crate::utils::media::{detect_available_encoder, transcode_to_webm_av1};
+use crate::utils::media::{transcode_to_mp4_av1, transcode_to_webm_av1};
 use anyhow::{Context, Result};
-use clap::Args;
+use clap::{Args, ValueEnum};
+use std::fmt::Debug;
 use std::path::{Path, PathBuf};
+
+/// 目标视频格式
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
+pub enum TargetFormat {
+    /// WebM 格式 (AV1 + Opus)
+    #[default]
+    Webm,
+    /// MP4 格式 (AV1 + AAC)
+    Mp4,
+}
 
 #[derive(Args, Debug)]
 #[command(name = "video_transcode")]
 #[command(version = "0.1.0")]
 #[command(
-    about = "将视频文件转码为 WebM AV1 格式",
-    long_about = "扫描指定目录（最多嵌套三层）下的视频文件，转换为 WebM AV1 格式。转换后的文件路径与源文件一致，扩展名为 .webm。如果目标文件已存在，则覆盖。"
+    about = "将视频文件转码为 AV1 格式",
+    long_about = "扫描指定目录（最多嵌套三层）下的视频文件，转换为 AV1 格式。支持 WebM 和 MP4 两种容器格式。转换后的文件路径与源文件一致，扩展名根据目标格式变化。如果目标文件已存在，则覆盖。"
 )]
 pub struct VideoTranscodeArgs {
     /// 源目录路径
@@ -21,6 +32,17 @@ pub struct VideoTranscodeArgs {
         long_help = "指定要扫描的源目录，工具会扫描该目录及其子目录（最多三层）中的视频文件。"
     )]
     pub source: PathBuf,
+
+    /// 目标格式
+    #[arg(
+        short = 'f',
+        long,
+        value_enum,
+        default_value_t = TargetFormat::Webm,
+        help = "目标视频格式",
+        long_help = "指定转码后的目标格式：webm (AV1 + Opus) 或 mp4 (AV1 + AAC)。"
+    )]
+    pub format: TargetFormat,
 }
 
 fn collect_video_files(source_dir: &Path, max_depth: usize) -> Vec<PathBuf> {
@@ -50,15 +72,17 @@ fn collect_video_files(source_dir: &Path, max_depth: usize) -> Vec<PathBuf> {
     video_files
 }
 
-async fn transcode_video(source_path: &Path, encoder: &str) -> Result<()> {
-    let ext = get_file_extension(source_path);
-    if ext == "webm" {
-        println!("跳过 WebM 文件: {}", source_path.display());
-        return Ok(());
+async fn transcode_video(source_path: &Path, format: TargetFormat) -> Result<()> {
+    match format {
+        TargetFormat::Webm => {
+            let output_path = source_path.with_extension("webm");
+            transcode_to_webm_av1(source_path, &output_path).await
+        },
+        TargetFormat::Mp4 => {
+            let output_path = source_path.with_extension("mp4");
+            transcode_to_mp4_av1(source_path, &output_path).await
+        },
     }
-
-    let output_path = source_path.with_extension("webm");
-    transcode_to_webm_av1(source_path, &output_path, encoder).await
 }
 
 pub async fn run(args: VideoTranscodeArgs) -> Result<()> {
@@ -71,13 +95,9 @@ pub async fn run(args: VideoTranscodeArgs) -> Result<()> {
         anyhow::bail!("源路径必须是目录: {}", source_dir.display());
     }
 
-    let encoder = detect_available_encoder().map_err(|e| anyhow::anyhow!("{}", e))?;
-
     println!("{} 视频转码工具 {}", "=".repeat(15), "=".repeat(15));
     println!("源目录: {}", source_dir.display());
-    println!("编码器: {}", encoder);
     println!("编码质量: CRF=25");
-    println!("目标格式: WebM (AV1 + Opus)");
     println!();
 
     let video_files = collect_video_files(&source_dir, 3);
@@ -91,7 +111,7 @@ pub async fn run(args: VideoTranscodeArgs) -> Result<()> {
 
     for (index, video_file) in video_files.iter().enumerate() {
         println!("进度: {}/{}", index + 1, video_files.len());
-        transcode_video(video_file, &encoder).await?;
+        transcode_video(video_file, args.format).await?;
         println!();
     }
 
