@@ -7,8 +7,8 @@
 本项目是一个集成了多种文件处理功能的命令行工具，使用子命令模式，包含以下主要命令：
 
 - **compress-delete**：使用 7-Zip 压缩文件和目录，然后删除原始项目
-- **file-copy-rename**：将文件从源目录复制到目标目录，使用哈希值重命名以避免重复
-- **find-unused-files**：查找目录中未被引用的资源文件
+- **hash-copy**：将文件从源目录复制到目标目录，使用哈希值重命名以避免重复
+- **unused-files**：查找目录中未被引用的资源文件
 - **residue-search**：查找 Windows 系统中软件卸载后的残留目录
 
 ## 安装方法
@@ -29,8 +29,8 @@ cargo install --path .
 
 ```bash
 cargo run -- compress-delete --directory ./projects
-cargo run -- file-copy-rename --extensions jpg,png,gif --source ./photos --target ./backup
-cargo run -- find-unused-files --resource-extensions png,jpg --code-extensions js,ts,css --dir ./assets
+cargo run -- hash-copy --extensions jpg,png,gif --source ./photos --target ./backup
+cargo run -- unused-files --resource-extensions png,jpg --code-extensions js,ts,css --dir ./assets
 cargo run -- residue-search --interactive --software Thunder
 ```
 
@@ -81,7 +81,7 @@ scripts compress-delete -d ./projects -p "your_password"
 - `[--directory, -d] <DIRECTORY>`: 要处理的目录路径，默认为当前目录
 - `[--password, -p] <PASSWORD>`: 压缩文件密码，启用后会同时加密文件内容和文件名
 
-### 2. file-copy-rename
+### 2. hash-copy
 
 **功能说明**：
 
@@ -101,16 +101,16 @@ scripts compress-delete -d ./projects -p "your_password"
 
 ```bash
 # 复制默认目录的默认格式文件
-scripts file-copy-rename
+scripts hash-copy
 
 # 复制指定目录的图片文件
-scripts file-copy-rename --source ./photos --target ./backup --extensions jpg,png,gif
+scripts hash-copy --source ./photos --target ./backup --extensions jpg,png,gif
 
 # 移动视频文件
-scripts file-copy-rename --source ./videos --target ./archive --extensions mp4,avi --move
+scripts hash-copy --source ./videos --target ./archive --extensions mp4,avi --move
 
 # 使用短选项
-scripts file-copy-rename -s ./source -t ./target -e "mp4,webm" -m
+scripts hash-copy -s ./source -t ./target -e "mp4,webm" -m
 ```
 
 **参数说明**：
@@ -120,7 +120,7 @@ scripts file-copy-rename -s ./source -t ./target -e "mp4,webm" -m
 - `[--extensions, -e] <EXTENSIONS>`: 文件扩展名（逗号分隔，不带点），默认为 `mp4,webm,m4v,avi,mkv,mov`（常见视频格式）
 - `[--move, -m]`: 启用移动模式（复制后删除源文件）
 
-### 3. find-unused-files
+### 3. unused-files
 
 **功能说明**：
 
@@ -139,13 +139,13 @@ scripts file-copy-rename -s ./source -t ./target -e "mp4,webm" -m
 
 ```bash
 # 检查 assets 目录中的图片资源，在 src 目录中搜索引用
-scripts find-unused-files --dir ./assets --resource-extensions png,jpg --code-extensions js,ts,css
+scripts unused-files --dir ./assets --resource-extensions png,jpg --code-extensions js,ts,css
 
 # 使用短选项
-scripts find-unused-files -d ./static -r "svg,gif" -c "html,vue,jsx"
+scripts unused-files -d ./static -r "svg,gif" -c "html,vue,jsx"
 
 # 自动删除未使用的文件（⚠️ 危险操作，请谨慎使用）
-scripts find-unused-files --dir ./public --delete
+scripts unused-files --dir ./public --delete
 ```
 
 **参数说明**：
@@ -217,7 +217,7 @@ scripts residue-search -s chrome -i
 3. **权限控制**：确保有足够的文件系统权限执行操作
 4. **7-Zip 安装**：compress-delete 命令需要系统安装 7-Zip 并在 PATH 中，或在标准安装位置
 5. **安全删除**：工具使用系统回收站机制（trash），删除的文件可恢复，比永久删除更安全。
-6. **find-unused-files 误报风险**：该工具检测结果可能有误报，删除文件前必须人工验证
+6. **unused-files 误报风险**：该工具检测结果可能有误报，删除文件前必须人工验证
 7. **动态引用检测限制**：通过变量拼接或动态加载的资源路径可能无法被正确识别
 8. **residue-search 风险**：虽然删除操作是移动到回收站，但在执行前仍请仔细确认匹配结果
 9. **软件残留识别**：请确保匹配的目录确实是软件残留，避免误删除系统文件或其他重要数据

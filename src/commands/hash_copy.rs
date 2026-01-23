@@ -1,4 +1,4 @@
-//! # 文件复制并重命名工具 (file_copy_rename)
+//! # 哈希复制工具 (hash_copy)
 //!
 //! 一个简洁高效的 Rust 命令行工具，用于将源目录中的文件复制到目标目录，
 //! 并使用 Blake3 哈希值重命名以避免重复。
@@ -16,13 +16,13 @@ use walkdir::WalkDir;
 /// 使用 clap 的 Args API 自动解析命令行参数，
 /// 提供类型安全和自动生成的帮助信息。
 #[derive(Args, Debug)]
-#[command(name = "file_copy_rename")]
+#[command(name = "hash_copy")]
 #[command(version = "0.1.0")]
 #[command(
     about = "将文件从源目录复制到目标目录，使用哈希值重命名",
     long_about = "递归遍历源目录，将匹配的文件复制到目标目录，并用 Blake3 哈希重命名以避免重复。可选移动模式在复制成功后删除源文件。"
 )]
-pub struct FileCopyRenameArgs {
+pub struct HashCopyArgs {
     /// 源目录路径
     ///
     /// 包含要复制的文件的目录。工具会递归遍历这个目录。
@@ -166,7 +166,7 @@ pub async fn process_file(
 ///
 /// * `Ok(())` - 程序成功执行
 /// * `Err(anyhow::Error)` - 程序执行失败
-pub async fn run(args: FileCopyRenameArgs) -> anyhow::Result<()> {
+pub async fn run(args: HashCopyArgs) -> anyhow::Result<()> {
     // 验证源目录和目标目录不能相同
     if args.source == args.target {
         anyhow::bail!("源目录和目标目录不能相同");
@@ -178,7 +178,7 @@ pub async fn run(args: FileCopyRenameArgs) -> anyhow::Result<()> {
     }
 
     // 显示程序信息
-    println!("{} 文件复制并重命名工具 {}", "=".repeat(15), "=".repeat(15));
+    println!("{} 哈希复制工具 {}", "=".repeat(15), "=".repeat(15));
     println!("源目录: {}", args.source.display());
     println!("目标目录: {}", args.target.display());
     println!();

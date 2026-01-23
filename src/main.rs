@@ -32,11 +32,11 @@ enum Commands {
     /// 使用 7-Zip 压缩文件和目录,然后删除原始项目
     CompressDelete(commands::compress_delete::CompressDeleteArgs),
     /// 将文件从源目录复制到目标目录，使用哈希值重命名
-    FileCopyRename(commands::file_copy_rename::FileCopyRenameArgs),
-    /// 查找目录中未被使用的文件
-    FindUnusedFiles(commands::find_unused_files::FindUnusedFilesArgs),
+    HashCopy(commands::hash_copy::HashCopyArgs),
     /// 查找软件卸载残留
     ResidueSearch(commands::residue_search::ResidueSearchArgs),
+    /// 查找目录中未被使用的文件
+    UnusedFiles(commands::unused_files::UnusedFilesArgs),
     /// 将视频文件转码为 WebM AV1 格式
     VideoTranscode(commands::video_transcode::VideoTranscodeArgs),
 }
@@ -50,9 +50,9 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::CompressDelete(args) => commands::compress_delete::run(args).await,
-        Commands::FileCopyRename(args) => commands::file_copy_rename::run(args).await,
-        Commands::FindUnusedFiles(args) => commands::find_unused_files::run(args).await,
+        Commands::HashCopy(args) => commands::hash_copy::run(args).await,
         Commands::ResidueSearch(args) => commands::residue_search::run(args).await,
+        Commands::UnusedFiles(args) => commands::unused_files::run(args).await,
         Commands::VideoTranscode(args) => commands::video_transcode::run(args).await,
     }
 }

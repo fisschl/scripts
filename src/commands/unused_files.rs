@@ -1,4 +1,4 @@
-//! # 查找未使用的文件工具 (find_unused_files)
+//! # 未使用文件查找工具 (unused_files)
 //!
 //! 扫描指定目录中的文件，检查是否在搜索目录中被引用使用。
 //! 判断规则：
@@ -30,13 +30,13 @@ pub enum FileStatus {
 
 /// 命令行参数结构体
 #[derive(Args, Debug)]
-#[command(name = "find_unused_files")]
+#[command(name = "unused_files")]
 #[command(version = "0.1.0")]
 #[command(
     about = "查找目录中未被使用的文件",
     long_about = "扫描目录中的资源文件，检查是否在代码文件中被引用。判断规则：1. 以相对路径（不带前导斜杠）在代码文件内容中搜索，找到则认为已使用；2. 若未找到相对路径，再以文件名搜索，未找到则认为未使用；3. 其他情况（仅找到文件名）标记为待定。"
 )]
-pub struct FindUnusedFilesArgs {
+pub struct UnusedFilesArgs {
     /// 要检查的目录路径
     ///
     /// 在该目录中查找资源文件，并在代码文件中搜索引用。
@@ -263,7 +263,7 @@ fn check_file_status(
 }
 
 /// 命令执行函数
-pub async fn run(args: FindUnusedFilesArgs) -> Result<()> {
+pub async fn run(args: UnusedFilesArgs) -> Result<()> {
     // 验证目录是否存在
     if !args.dir.exists() {
         anyhow::bail!("目录不存在: {}", args.dir.display());
@@ -271,7 +271,7 @@ pub async fn run(args: FindUnusedFilesArgs) -> Result<()> {
 
     // 显示程序信息
     println!(
-        "{}  查找未使用的文件工具 {}",
+        "{}  未使用文件查找工具 {}",
         "=".repeat(15),
         "=".repeat(15)
     );
