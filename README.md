@@ -29,8 +29,8 @@ cargo install --path .
 
 ```bash
 cargo run -- compress-delete --directory ./projects
-cargo run -- file-copy-rename --source ./photos --target ./backup --extensions jpg,png,gif
-cargo run -- find-unused-files --dir ./assets --resource-extensions png,jpg --code-extensions js,ts,css
+cargo run -- file-copy-rename --extensions jpg,png,gif --source ./photos --target ./backup
+cargo run -- find-unused-files --resource-extensions png,jpg --code-extensions js,ts,css --dir ./assets
 cargo run -- residue-search --interactive --software Thunder
 ```
 
