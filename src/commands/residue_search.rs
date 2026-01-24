@@ -13,7 +13,7 @@
 //! - 权限不足时自动跳过
 
 use crate::utils::filesystem::calculate_dir_size;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use bytesize::ByteSize;
 use chrono::{DateTime, Local};
 use clap::Args;
@@ -318,7 +318,7 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
 
     // 执行删除
     for path in selected_paths {
-        let result = trash::delete(&path).context("无法将目录移动到回收站");
+        let result = trash::delete(&path);
 
         match result {
             Ok(_) => {
