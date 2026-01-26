@@ -119,11 +119,11 @@ async fn transcode_video(source_path: &Path, format: TargetFormat) -> Result<()>
         TargetFormat::Webm => {
             let output_path = source_path.with_extension("webm");
             transcode_to_webm_av1(source_path, &output_path).await
-        },
+        }
         TargetFormat::Mp4 => {
             let output_path = source_path.with_extension("mp4");
             transcode_to_mp4_av1(source_path, &output_path).await
-        },
+        }
     }
 }
 

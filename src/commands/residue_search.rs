@@ -314,7 +314,7 @@ pub async fn run(args: ResidueSearchArgs) -> Result<()> {
     }
 
     // 将选中的路径字符串转换为 PathBuf
-    let selected_paths: Vec<PathBuf> = selected.iter().map(|s| PathBuf::from(s)).collect();
+    let selected_paths: Vec<PathBuf> = selected.iter().map(PathBuf::from).collect();
 
     // 执行删除
     for path in selected_paths {

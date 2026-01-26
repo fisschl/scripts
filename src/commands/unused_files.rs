@@ -14,7 +14,6 @@ use grep_searcher::sinks::UTF8;
 use ignore::WalkBuilder;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use trash;
 use walkdir::WalkDir;
 
 /// 文件使用状态
@@ -76,14 +75,6 @@ pub struct UnusedFilesArgs {
         long_help = "要在其中搜索引用的代码文件扩展名，逗号分隔，不带点，大小写不敏感。例如：js,ts,css"
     )]
     pub code_extensions: String,
-
-    /// 自动删除未使用的文件
-    #[arg(
-        long = "delete",
-        help = "自动删除未使用的文件",
-        long_help = "开启后会自动删除未使用的文件，默认关闭。请谨慎使用此选项！"
-    )]
-    pub delete: bool,
 }
 
 /// 获取文件相对于基础目录的相对路径（不带前导斜杠）
@@ -270,11 +261,7 @@ pub async fn run(args: UnusedFilesArgs) -> Result<()> {
     }
 
     // 显示程序信息
-    println!(
-        "{}  未使用文件查找工具 {}",
-        "=".repeat(15),
-        "=".repeat(15)
-    );
+    println!("{}  未使用文件查找工具 {}", "=".repeat(15), "=".repeat(15));
     println!("目录: {}", args.dir.display());
     println!();
 
@@ -405,22 +392,6 @@ pub async fn run(args: UnusedFilesArgs) -> Result<()> {
         "总计: {}",
         used_count + unused_files.len() + uncertain_files.len()
     );
-
-    // 如果开启了删除选项，删除未使用的文件
-    if args.delete && !unused_files.is_empty() {
-        println!();
-        println!("{} 删除未使用的文件 {}", "=".repeat(18), "=".repeat(18));
-
-        for relative_path in &unused_files {
-            let file_path = args.dir.join(relative_path);
-            trash::delete(&file_path)
-                .with_context(|| format!("无法将文件移动到回收站: {}", relative_path))?;
-            println!("✓ 已移动到回收站: {}", relative_path);
-        }
-
-        println!();
-        println!("成功删除: {}", unused_files.len());
-    }
 
     Ok(())
 }
