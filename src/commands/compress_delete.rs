@@ -22,20 +22,20 @@ use trash;
     long_about = "将工作目录的直接子项压缩为 .7z 并删除原始文件。\n仅处理首层文件/目录（不递归），输出文件与原项同名，扩展名为 .7z。可选设置密码加密内容与文件名。"
 )]
 pub struct CompressDeleteArgs {
-    /// 要处理的工作目录路径
+    /// 要处理的源目录路径
     ///
     /// 指定包含要压缩和删除的项目的目录。
     /// 工具只会处理该目录的直接子项,不会递归遍历。
     /// 默认为当前目录(".")。
     #[arg(
-        short = 'd',
+        short = 's',
         long,
         default_value = ".",
-        value_name = "DIRECTORY",
-        help = "工作目录路径",
+        value_name = "SOURCE",
+        help = "源目录路径",
         long_help = "仅处理该目录的直接子项（不递归）。默认当前目录 (.)。"
     )]
-    pub directory: PathBuf,
+    pub source: PathBuf,
 
     /// 压缩文件密码
     ///
@@ -50,6 +50,18 @@ pub struct CompressDeleteArgs {
         long_help = "启用后同时加密文件内容和文件名（-mhe=on）。不指定则不加密。"
     )]
     pub password: Option<String>,
+
+    /// 压缩完成后删除原始文件
+    ///
+    /// 启用此选项后，压缩成功后将自动将原始文件移动到回收站。
+    /// 默认不启用，以保留原始文件。
+    #[arg(
+        short = 'd',
+        long,
+        help = "压缩完成后删除原始文件",
+        long_help = "启用后，压缩成功将自动将原始文件移动到回收站。默认不启用。"
+    )]
+    pub delete: bool,
 }
 
 /// 收集要处理的项目
@@ -129,6 +141,7 @@ pub async fn process_item(
     item_path: &Path,
     work_directory: &Path,
     password: Option<&str>,
+    delete: bool,
 ) -> Result<()> {
     // 提取项目名称用于显示和生成输出文件名
     let item_name = item_path
@@ -168,10 +181,14 @@ pub async fn process_item(
         );
     }
 
-    // 压缩成功后删除原始项目
-    trash::delete(item_path)
-        .with_context(|| format!("无法将原始项目移动到回收站: {}", item_path.display()))?;
-    println!("已将原始项目移动到回收站: {}", item_name);
+    // 如果启用了删除选项，将原始项目移动到回收站
+    if delete {
+        trash::delete(item_path)
+            .with_context(|| format!("无法将原始项目移动到回收站: {}", item_path.display()))?;
+        println!("已将原始项目移动到回收站: {}", item_name);
+    } else {
+        println!("保留原始项目: {}", item_name);
+    }
 
     Ok(())
 }
@@ -194,21 +211,28 @@ pub async fn process_item(
 /// * `Ok(())` - 程序成功执行
 /// * `Err(anyhow::Error)` - 程序执行失败
 pub async fn run(args: CompressDeleteArgs) -> anyhow::Result<()> {
-    // 获取工作目录路径并转换为绝对路径
+    // 获取源目录路径并转换为绝对路径
     let work_directory = args
-        .directory
+        .source
         .canonicalize()
-        .with_context(|| format!("无法访问工作目录: {}", args.directory.display()))?;
+        .with_context(|| format!("无法访问源目录: {}", args.source.display()))?;
 
-    // 显示程序标题和工作目录信息
+    // 显示程序标题和源目录信息
     println!("{} 压缩并删除工具 {}", "=".repeat(15), "=".repeat(15));
-    println!("工作目录: {}", work_directory.display());
+    println!("源目录: {}", work_directory.display());
 
     // 显示密码设置状态
     if args.password.is_some() {
         println!("加密模式: 已启用(加密文件内容和文件名)");
     } else {
         println!("加密模式: 未启用");
+    }
+
+    // 显示删除选项状态
+    if args.delete {
+        println!("删除原始文件: 已启用");
+    } else {
+        println!("删除原始文件: 未启用");
     }
     println!();
 
@@ -225,9 +249,14 @@ pub async fn run(args: CompressDeleteArgs) -> anyhow::Result<()> {
 
     // 逐个处理项目，遇到失败直接返回错误
     for item in items {
-        process_item(&item, &work_directory, args.password.as_deref())
-            .await
-            .with_context(|| format!("处理 {} 失败", item.display()))?;
+        process_item(
+            &item,
+            &work_directory,
+            args.password.as_deref(),
+            args.delete,
+        )
+        .await
+        .with_context(|| format!("处理 {} 失败", item.display()))?;
     }
 
     // 显示完成信息
