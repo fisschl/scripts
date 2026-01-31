@@ -6,7 +6,7 @@
 
 本项目是一个集成了多种文件处理功能的命令行工具，使用子命令模式，包含以下主要命令：
 
-- **compress-delete**：使用 7-Zip 压缩文件和目录，然后删除原始项目
+- **batch-compress**：批量压缩目录下的文件和子目录为 7z 格式
 - **hash-copy**：将文件从源目录复制到目标目录，使用哈希值重命名以避免重复
 - **unused-files**：查找目录中未被引用的资源文件
 - **residue-search**：查找 Windows 系统中软件卸载后的残留目录
@@ -28,7 +28,7 @@ cargo install --path .
 通过 cargo 直接运行（推荐开发时）
 
 ```bash
-cargo run -- compress-delete --directory ./projects
+cargo run -- batch-compress --source ./projects
 cargo run -- hash-copy --extensions jpg,png,gif --source ./photos --target ./backup
 cargo run -- unused-files --resource-extensions png,jpg --code-extensions js,ts,css --dir ./assets
 cargo run -- residue-search --interactive --software Thunder
@@ -45,12 +45,13 @@ cargo build --release
 
 ## 工具列表
 
-### 1. compress-delete
+### 1. batch-compress
 
 **功能说明**：
 
 - 将指定目录下的所有一级子目录和文件使用 7z 压缩成压缩包
-- 压缩完成后自动删除对应的源文件或目录
+- 支持密码加密压缩（加密文件内容和文件名）
+- 可选删除原始文件（需显式启用）
 - 智能检测 7z 安装位置
 
 **安全特性**：
@@ -64,22 +65,26 @@ cargo build --release
 
 ```bash
 # 压缩当前目录下所有项目
-scripts compress-delete
+scripts batch-compress
 
-# 指定工作目录
-scripts compress-delete --directory ./backup
+# 指定源目录
+scripts batch-compress --source ./backup
 
 # 使用密码加密压缩
-scripts compress-delete --directory ./projects --password "your_password"
+scripts batch-compress --source ./projects --password "your_password"
+
+# 压缩后删除原始文件
+scripts batch-compress --source ./projects --delete
 
 # 使用短选项
-scripts compress-delete -d ./projects -p "your_password"
+scripts batch-compress -s ./projects -p "your_password" -d
 ```
 
 **参数说明**：
 
-- `[--directory, -d] <DIRECTORY>`: 要处理的目录路径，默认为当前目录
+- `[--source, -s] <SOURCE>`: 要处理的源目录路径，默认为当前目录
 - `[--password, -p] <PASSWORD>`: 压缩文件密码，启用后会同时加密文件内容和文件名
+- `[--delete, -d]`: 压缩完成后删除原始文件（默认不删除）
 
 ### 2. hash-copy
 
@@ -215,7 +220,7 @@ scripts residue-search -s chrome -i
 1. **⚠️ 备份重要数据**：在运行删除或移动操作前，请确保已备份重要文件
 2. **测试运行**：建议先在小批量文件上测试工具功能
 3. **权限控制**：确保有足够的文件系统权限执行操作
-4. **7-Zip 安装**：compress-delete 命令需要系统安装 7-Zip 并在 PATH 中，或在标准安装位置
+4. **7-Zip 安装**：batch-compress 命令需要系统安装 7-Zip 并在 PATH 中，或在标准安装位置
 5. **安全删除**：工具使用系统回收站机制（trash），删除的文件可恢复，比永久删除更安全。
 6. **unused-files 误报风险**：该工具检测结果可能有误报，删除文件前必须人工验证
 7. **动态引用检测限制**：通过变量拼接或动态加载的资源路径可能无法被正确识别
