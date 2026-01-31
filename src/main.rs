@@ -29,8 +29,8 @@ struct Cli {
 /// 定义了所有支持的子命令，每个子命令对应一个具体的功能模块。
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// 使用 7-Zip 压缩文件和目录,然后删除原始项目
-    CompressDelete(commands::compress_delete::CompressDeleteArgs),
+    /// 批量压缩目录下的文件和子目录为 7z 格式
+    BatchCompress(commands::batch_compress::BatchCompressArgs),
     /// 将文件从源目录复制到目标目录，使用哈希值重命名
     HashCopy(commands::hash_copy::HashCopyArgs),
     /// 查找软件卸载残留
@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::CompressDelete(args) => commands::compress_delete::run(args).await,
+        Commands::BatchCompress(args) => commands::batch_compress::run(args).await,
         Commands::HashCopy(args) => commands::hash_copy::run(args).await,
         Commands::ResidueSearch(args) => commands::residue_search::run(args).await,
         Commands::UnusedFiles(args) => commands::unused_files::run(args).await,

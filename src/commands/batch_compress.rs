@@ -1,7 +1,7 @@
-//! # 压缩并删除工具 (compress_delete)
+//! # 批量压缩工具 (batch_compress)
 //!
-//! 一个简洁高效的 Rust 命令行工具，用于压缩指定目录下的文件和子目录，
-//! 然后删除原始文件，仅保留压缩后的 7z 文件。
+//! 一个简洁高效的 Rust 命令行工具，用于批量压缩指定目录下的文件和子目录，
+//! 支持密码加密和可选的删除原始文件功能。
 
 use crate::utils::compress::compress_7z;
 use crate::utils::filesystem::get_file_extension;
@@ -15,13 +15,13 @@ use trash;
 /// 使用 clap 的 Args API 自动解析命令行参数，
 /// 提供类型安全和自动生成的帮助信息。
 #[derive(Args, Debug)]
-#[command(name = "compress_delete")]
+#[command(name = "batch_compress")]
 #[command(version = "0.1.0")]
 #[command(
-    about = "使用 7-Zip 压缩文件和目录,然后删除原始项目",
-    long_about = "将工作目录的直接子项压缩为 .7z 并删除原始文件。\n仅处理首层文件/目录（不递归），输出文件与原项同名，扩展名为 .7z。可选设置密码加密内容与文件名。"
+    about = "批量压缩目录下的文件和子目录为 7z 格式",
+    long_about = "将源目录的直接子项批量压缩为 .7z 文件。\n仅处理首层文件/目录（不递归），输出文件与原项同名，扩展名为 .7z。可选设置密码加密内容与文件名，支持删除原始文件。"
 )]
-pub struct CompressDeleteArgs {
+pub struct BatchCompressArgs {
     /// 要处理的源目录路径
     ///
     /// 指定包含要压缩和删除的项目的目录。
@@ -210,7 +210,7 @@ pub async fn process_item(
 ///
 /// * `Ok(())` - 程序成功执行
 /// * `Err(anyhow::Error)` - 程序执行失败
-pub async fn run(args: CompressDeleteArgs) -> anyhow::Result<()> {
+pub async fn run(args: BatchCompressArgs) -> anyhow::Result<()> {
     // 获取源目录路径并转换为绝对路径
     let work_directory = args
         .source
@@ -218,7 +218,7 @@ pub async fn run(args: CompressDeleteArgs) -> anyhow::Result<()> {
         .with_context(|| format!("无法访问源目录: {}", args.source.display()))?;
 
     // 显示程序标题和源目录信息
-    println!("{} 压缩并删除工具 {}", "=".repeat(15), "=".repeat(15));
+    println!("{} 批量压缩工具 {}", "=".repeat(15), "=".repeat(15));
     println!("源目录: {}", work_directory.display());
 
     // 显示密码设置状态
